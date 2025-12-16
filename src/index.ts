@@ -43,7 +43,7 @@ const upload = program
       }
 
       // Upload file
-      const [tx, uploadErr] = await indexer.upload(zgFile, RPC_URL, signer);
+      const [tx, uploadErr] = await indexer.upload(zgFile, RPC_URL, signer as any);
 
       if (uploadErr !== null) {
         throw new Error(`Upload error: ${uploadErr}`);
@@ -52,8 +52,8 @@ const upload = program
       await zgFile.close();
 
       console.log('Upload successful!');
-      console.log('Root Hash:', tree?.rootHash() ?? '');
-      console.log('Transaction Hash:', tx);
+      console.log('Root Hash:', tx.rootHash);
+      console.log('Transaction Hash:', tx.txHash);
     } catch (error) {
       console.error('Upload error:', error instanceof Error ? error.message : error);
       process.exit(1);

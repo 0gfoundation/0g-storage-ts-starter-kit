@@ -1,6 +1,6 @@
 # 0G Storage TypeScript SDK Starter Kit
 
-A starter kit demonstrating how to use the 0G Storage TypeScript SDK for decentralized file storage. This example implements a simple CLI tool showcasing the core SDK functionalities.
+A starter kit demonstrating how to use the 0G Storage TypeScript SDK (`@0glabs/0g-ts-sdk` v0.3.3) for decentralized file storage. This example implements a simple CLI tool showcasing the core SDK functionalities.
 
 ## Repository Branches
 
@@ -71,11 +71,15 @@ if (uploadErr !== null) {
 }
 
 await zgFile.close();  // Clean up resources
+
+// Access response data
+const rootHash = tx.rootHash;        // File identifier
+const transactionHash = tx.txHash;   // Blockchain transaction
 ```
 This process:
 - Creates and signs a storage transaction
 - Uploads file to the network
-- Returns transaction and root hashes for verification
+- Returns `tx.rootHash` (file identifier) and `tx.txHash` (transaction hash)
 
 ## Download Process
 
@@ -137,11 +141,25 @@ Download Options:
 ```
 
 ## Network Configuration
+
+The CLI supports both Testnet and Mainnet. Update the constants in `src/index.ts`:
+
+### Testnet (Default)
 ```typescript
-// Default network configuration
-const RPC_URL = 'https://evmrpc-testnet.0g.ai/';
-const INDEXER_RPC = 'https://indexer-storage-testnet-standard.0g.ai';
+const RPC_URL = 'https://evmrpc-testnet.0g.ai';
+const INDEXER_RPC = 'https://indexer-storage-testnet-turbo.0g.ai';
 ```
+
+### Mainnet
+```typescript
+const RPC_URL = 'https://evmrpc.0g.ai';
+const INDEXER_RPC = 'https://indexer-storage.0g.ai';
+```
+
+| Network | RPC URL | Indexer RPC |
+|---------|---------|-------------|
+| Testnet | `https://evmrpc-testnet.0g.ai` | `https://indexer-storage-testnet-turbo.0g.ai` |
+| Mainnet | `https://evmrpc.0g.ai` | `https://indexer-storage.0g.ai` |
 
 ## Best Practices
 1. **Resource Management**:
