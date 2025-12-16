@@ -106,8 +106,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     await zgFile.close();
 
     res.json({
-      rootHash: tree?.rootHash() ?? '',
-      transactionHash: tx
+      rootHash: tx.rootHash,
+      transactionHash: tx.txHash
     });
   } catch (error) {
     console.error('Upload error:', error);

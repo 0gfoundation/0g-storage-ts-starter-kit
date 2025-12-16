@@ -1,6 +1,6 @@
 # 0G Storage TypeScript SDK Starter Kit
 
-This repository demonstrates how to integrate and use the 0G Storage TypeScript SDK in your applications. It provides implementation examples using the 0G decentralized storage network.
+This repository demonstrates how to integrate and use the 0G Storage TypeScript SDK (`@0glabs/0g-ts-sdk` v0.3.3) in your applications. It provides implementation examples using the 0G decentralized storage network.
 
 ## Repository Branches
 
@@ -51,12 +51,22 @@ The upload process involves both API handling and SDK operations:
 const zgFile = await ZgFile.fromFilePath(filePath);
 const [tree, treeErr] = await zgFile.merkleTree();
 
-// Upload file with new API syntax
+if (treeErr) {
+  throw new Error(`Merkle tree error: ${treeErr}`);
+}
+
+// Upload file
 const [tx, uploadErr] = await indexer.upload(zgFile, RPC_URL, signer);
 
-// Get file identifier and transaction hash
-const rootHash = tree?.rootHash();
-const transactionHash = tx;
+if (uploadErr) {
+  throw new Error(`Upload error: ${uploadErr}`);
+}
+
+await zgFile.close();
+
+// Get file identifier and transaction hash from response
+const rootHash = tx.rootHash;
+const transactionHash = tx.txHash;
 ```
 
 What happens during upload:
@@ -117,12 +127,25 @@ npm start
      - Response: File content stream
 
 ## Network Configuration
-The application uses the following default network configuration which can be overridden through environment variables:
 
-```typescript
-const RPC_URL = 'https://evmrpc-testnet.0g.ai/';
-const INDEXER_RPC = 'https://indexer-storage-testnet-standard.0g.ai';
+The application supports both Testnet and Mainnet. Configure via environment variables in `.env`:
+
+### Testnet (Default)
+```bash
+RPC_URL=https://evmrpc-testnet.0g.ai
+INDEXER_RPC=https://indexer-storage-testnet-turbo.0g.ai
 ```
+
+### Mainnet
+```bash
+RPC_URL=https://evmrpc.0g.ai
+INDEXER_RPC=https://indexer-storage.0g.ai
+```
+
+| Network | RPC URL | Indexer RPC |
+|---------|---------|-------------|
+| Testnet | `https://evmrpc-testnet.0g.ai` | `https://indexer-storage-testnet-turbo.0g.ai` |
+| Mainnet | `https://evmrpc.0g.ai` | `https://indexer-storage.0g.ai` |
 
 ## Best Practices
 1. **Error Handling**:
