@@ -23,7 +23,7 @@ console.log('='.repeat(60));
 console.log(`Network:     ${config.network.name} (${config.network.mode})`);
 console.log(`RPC:         ${config.network.rpcUrl}`);
 console.log(`Indexer:     ${config.network.indexerRpc}`);
-console.log(`Private Key: ${config.privateKey ? config.privateKey.substring(0, 8) + '...' : 'NOT SET'}`);
+console.log(`Private Key: ${config.privateKey ? 'SET' : 'NOT SET'}`);
 console.log('='.repeat(60));
 
 if (!config.privateKey) {

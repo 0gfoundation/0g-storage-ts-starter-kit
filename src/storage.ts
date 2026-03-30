@@ -90,7 +90,7 @@ export async function uploadFile(
     const [tx, uploadErr] = await indexer.upload(
       zgFile,
       config.network.rpcUrl,
-      signer as any,
+      signer as any, // ethers ESM/CJS type mismatch — runtime compatible
       undefined,
       buildRetryOpts(config),
       buildTxOpts(config),
@@ -163,7 +163,7 @@ export async function uploadData(
   const [tx, uploadErr] = await indexer.upload(
     memData,
     config.network.rpcUrl,
-    signer as any,
+    signer as any, // ethers ESM/CJS type mismatch — runtime compatible
     undefined,
     buildRetryOpts(config),
     buildTxOpts(config),

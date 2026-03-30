@@ -1,5 +1,6 @@
 {
   "name": "0g-storage-ts-starter",
+  "engines": { "node": ">=18" },
   "version": "2.0.0",
   "type": "module",
   "main": "./dist/src/index.js",

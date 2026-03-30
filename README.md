@@ -6,6 +6,17 @@ A developer-friendly starter kit for [0G Storage](https://docs.0g.ai) — decent
 
 ---
 
+## Prerequisites
+
+- **Node.js** >= 18
+- **npm**
+- **A wallet with A0GI tokens** — uploads require gas fees
+  - Testnet faucet: [faucet.0g.ai](https://faucet.0g.ai) (0.1 A0GI/day)
+  - Export your private key from MetaMask: Account Details → Show Private Key
+- **MetaMask** (for web UI only — scripts don't need it)
+
+---
+
 ## Quick Start
 
 ### 1. Install & Configure
@@ -28,17 +39,26 @@ PRIVATE_KEY=your_private_key_here
 # Upload a file
 npm run upload -- ./path/to/file.txt
 
-# Download by root hash
+# Download by root hash (saves to ./downloads/<roothash>)
 npm run download -- 0xabc123...
+
+# Download to a specific path
+npm run download -- 0xabc123... --output ./my-file.txt
 
 # Upload string data (via MemData)
 npm run upload:data -- -d "Hello, 0G Storage!"
 
+# Upload file contents as raw buffer (via MemData)
+npm run upload:data -- -f ./data.bin
+
 # Upload multiple files
 npm run upload:batch -- file1.txt file2.txt file3.txt
 
-# Run all tests
+# Run all integration tests
 npm run test:all
+
+# Start the web UI (browser)
+npm run web
 ```
 
 Override network, mode, or key per-command:
@@ -46,6 +66,8 @@ Override network, mode, or key per-command:
 npm run upload -- ./file.txt --network mainnet --mode turbo --key 0xYOUR_KEY
 npm run upload -- ./file.txt --mode standard    # Use standard mode
 ```
+
+> Note: Downloads don't require a private key — only uploads need signing.
 
 ---
 
@@ -75,7 +97,7 @@ Opens at `http://localhost:5173` with:
 Import the core functions into your own project:
 
 ```typescript
-import { uploadFile, downloadFile, uploadData, getConfig } from './src/index.js';
+import { uploadFile, downloadFile, uploadData, batchUpload, getConfig } from './src/index.js';
 
 // Configure (defaults to testnet + turbo)
 const config = getConfig({ network: 'testnet', mode: 'turbo', privateKey: '0x...' });
