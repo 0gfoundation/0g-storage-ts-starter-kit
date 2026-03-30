@@ -222,12 +222,37 @@ async function handleDownload() {
 }
 
 // --- Init ---
-export function initUI() {
-  // Wallet events
+export function initUI(hasMetaMask: boolean) {
+  // Download always works (no wallet needed)
+  downloadHash.addEventListener('input', updateButtonStates);
+  downloadBtn.addEventListener('click', handleDownload);
+
+  // Mode selector always works (affects which indexer is used for download)
+  modeSelect.addEventListener('change', handleModeChange);
+
+  // Copy hash
+  copyHashBtn.addEventListener('click', () => {
+    const hash = resultRootHash.textContent;
+    if (hash) {
+      navigator.clipboard.writeText(hash);
+      copyHashBtn.textContent = 'Copied!';
+      setTimeout(() => { copyHashBtn.textContent = 'Copy'; }, 1500);
+    }
+  });
+
+  if (!hasMetaMask) {
+    // Disable wallet-dependent features, but network selector still updates config
+    connectBtn.disabled = true;
+    uploadBtn.disabled = true;
+    networkSelect.addEventListener('change', () => refreshNetworkConfig());
+    return;
+  }
+
+  // --- Wallet-dependent features (MetaMask required) ---
+
   connectBtn.addEventListener('click', handleConnect);
   disconnectBtn.addEventListener('click', handleDisconnect);
   networkSelect.addEventListener('change', handleNetworkChange);
-  modeSelect.addEventListener('change', handleModeChange);
 
   // File events
   fileInput.addEventListener('change', () => {
@@ -251,20 +276,6 @@ export function initUI() {
 
   // Upload
   uploadBtn.addEventListener('click', handleUpload);
-
-  // Download
-  downloadHash.addEventListener('input', updateButtonStates);
-  downloadBtn.addEventListener('click', handleDownload);
-
-  // Copy hash
-  copyHashBtn.addEventListener('click', () => {
-    const hash = resultRootHash.textContent;
-    if (hash) {
-      navigator.clipboard.writeText(hash);
-      copyHashBtn.textContent = 'Copied!';
-      setTimeout(() => { copyHashBtn.textContent = 'Copy'; }, 1500);
-    }
-  });
 
   // MetaMask account/chain change listeners
   onAccountsChanged(async (accounts) => {
