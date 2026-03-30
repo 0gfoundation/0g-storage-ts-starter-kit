@@ -172,23 +172,34 @@ const results = await batchUpload(['a.txt', 'b.txt'], config);
 
 ### Storage Modes: Turbo vs Standard
 
-0G Storage operates two independent storage networks with different pricing:
+0G Storage operates two independent storage networks with different pricing. Each mode has its own flow contract, indexer, and storage nodes. A file uploaded to turbo is NOT available on standard.
 
 | | Turbo | Standard |
 |--|-------|----------|
 | Speed | Faster, more reliable | Standard speed |
 | Pricing | Higher fees | Lower fees |
-| Testnet Indexer | `indexer-storage-testnet-turbo.0g.ai` | `indexer-storage-testnet-standard.0g.ai` |
-| Mainnet Indexer | `indexer-storage-turbo.0g.ai` | `indexer-storage.0g.ai` |
-| Status | Active | May be unavailable |
 
-Each mode uses its own flow contract, indexer, and storage node network. The SDK auto-discovers the correct flow contract from the indexer — just select your mode.
+#### Testnet (Galileo)
+
+| | Turbo | Standard |
+|--|-------|----------|
+| Indexer | `https://indexer-storage-testnet-turbo.0g.ai` | `https://indexer-storage-testnet-standard.0g.ai` |
+| Status | Active | Under maintenance |
+
+#### Mainnet
+
+| | Turbo | Standard |
+|--|-------|----------|
+| Indexer | `https://indexer-storage-turbo.0g.ai` | `https://indexer-storage.0g.ai` |
+| Status | Active | Under maintenance |
+
+The SDK auto-discovers the correct flow contract from the indexer — just select your mode.
 
 ```bash
 # Default is turbo
 npm run upload -- ./file.txt
 
-# Use standard mode
+# Use standard mode (when available)
 npm run upload -- ./file.txt --mode standard
 
 # Set in .env
