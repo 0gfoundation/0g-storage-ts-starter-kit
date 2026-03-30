@@ -32,7 +32,7 @@ const NETWORK_BASE: Record<NetworkName, Omit<NetworkConfig, 'mode' | 'indexerRpc
     chainIdHex: '0x40DA',
     chainName: '0G Galileo Testnet',
     explorerUrl: 'https://chainscan-galileo.0g.ai',
-    nativeCurrency: { name: 'A0GI', symbol: 'A0GI', decimals: 18 },
+    nativeCurrency: { name: '0G', symbol: '0G', decimals: 18 },
   },
   mainnet: {
     name: 'mainnet',
@@ -41,7 +41,7 @@ const NETWORK_BASE: Record<NetworkName, Omit<NetworkConfig, 'mode' | 'indexerRpc
     chainIdHex: '0x4105',
     chainName: '0G Mainnet',
     explorerUrl: 'https://chainscan.0g.ai',
-    nativeCurrency: { name: 'A0GI', symbol: 'A0GI', decimals: 18 },
+    nativeCurrency: { name: '0G', symbol: '0G', decimals: 18 },
   },
 };
 

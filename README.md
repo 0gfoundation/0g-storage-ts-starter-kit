@@ -10,8 +10,8 @@ A developer-friendly starter kit for [0G Storage](https://docs.0g.ai) — decent
 
 - **Node.js** >= 18
 - **npm**
-- **A wallet with A0GI tokens** — uploads require gas fees
-  - Testnet faucet: [faucet.0g.ai](https://faucet.0g.ai) (0.1 A0GI/day)
+- **A wallet with 0G tokens** — uploads require gas fees
+  - Testnet faucet: [faucet.0g.ai](https://faucet.0g.ai) (0.1 0G/day)
   - Export your private key from MetaMask: Account Details → Show Private Key
 - **MetaMask** (for web UI only — scripts don't need it)
 
@@ -168,7 +168,7 @@ const results = await batchUpload(['a.txt', 'b.txt'], config);
 | RPC | `https://evmrpc-testnet.0g.ai` | `https://evmrpc.0g.ai` |
 | Chain ID | 16602 | 16661 |
 | Explorer | [chainscan-galileo.0g.ai](https://chainscan-galileo.0g.ai) | [chainscan.0g.ai](https://chainscan.0g.ai) |
-| Token | A0GI | A0GI |
+| Token | 0G | 0G |
 
 ### Storage Modes: Turbo vs Standard
 
@@ -179,14 +179,14 @@ const results = await batchUpload(['a.txt', 'b.txt'], config);
 | Speed | Faster, more reliable | Standard speed |
 | Pricing | Higher fees | Lower fees |
 
-#### Testnet (Galileo)
+#### [Testnet (Galileo)](https://docs.0g.ai/developer-hub/testnet/testnet-overview)
 
 | | Turbo | Standard |
 |--|-------|----------|
 | Indexer | `https://indexer-storage-testnet-turbo.0g.ai` | `https://indexer-storage-testnet-standard.0g.ai` |
 | Status | Active | Under maintenance |
 
-#### Mainnet
+#### [Mainnet](https://docs.0g.ai/developer-hub/mainnet/mainnet-overview)
 
 | | Turbo | Standard |
 |--|-------|----------|

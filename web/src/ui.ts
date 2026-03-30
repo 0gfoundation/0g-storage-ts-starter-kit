@@ -103,7 +103,7 @@ async function handleConnect() {
     const state = await connectWallet();
 
     walletAddress.textContent = truncateAddress(state.address);
-    walletBalance.textContent = `${parseFloat(state.balance).toFixed(4)} A0GI`;
+    walletBalance.textContent = `${parseFloat(state.balance).toFixed(4)} 0G`;
     connectBtn.classList.add('hidden');
     walletInfo.classList.remove('hidden');
     isConnected = true;
@@ -132,7 +132,7 @@ async function handleNetworkChange() {
     try {
       await switchNetwork(currentNetwork);
       const balance = await getBalance();
-      walletBalance.textContent = `${parseFloat(balance).toFixed(4)} A0GI`;
+      walletBalance.textContent = `${parseFloat(balance).toFixed(4)} 0G`;
     } catch (err: any) {
       showStatus(uploadStatus, `Network switch failed: ${err.message}`, 'error');
     }
@@ -284,7 +284,7 @@ export function initUI(hasMetaMask: boolean) {
     } else {
       walletAddress.textContent = truncateAddress((accounts as string[])[0]);
       const balance = await getBalance();
-      walletBalance.textContent = `${parseFloat(balance).toFixed(4)} A0GI`;
+      walletBalance.textContent = `${parseFloat(balance).toFixed(4)} 0G`;
     }
   });
 
