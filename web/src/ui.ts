@@ -76,7 +76,7 @@ function hideStatus(el: HTMLDivElement) {
 
 function updateButtonStates() {
   uploadBtn.disabled = !isConnected || !selectedFile;
-  downloadBtn.disabled = !downloadHash.value.trim().startsWith('0x');
+  downloadBtn.disabled = !/^0x[0-9a-fA-F]{64}$/.test(downloadHash.value.trim());
 }
 
 function refreshNetworkConfig() {

@@ -4,6 +4,7 @@ import type { NetworkConfig } from './config.js';
 
 const DEFAULT_CHUNK_SIZE = 256;
 const DEFAULT_SEGMENT_MAX_CHUNKS = 1024;
+const ROOT_HASH_REGEX = /^0x[0-9a-fA-F]{64}$/;
 
 /** Mirrors SDK's GetSplitNum: ceil division */
 function getSplitNum(total: number, unit: number): number {
@@ -73,6 +74,10 @@ export async function downloadFile(
   network: NetworkConfig,
   onStatus?: (msg: string, percent?: number) => void,
 ): Promise<DownloadResult> {
+  if (!ROOT_HASH_REGEX.test(rootHash)) {
+    throw new Error('Invalid root hash format. Expected 0x followed by 64 hex characters.');
+  }
+
   onStatus?.('Finding file locations...');
 
   const indexer = new Indexer(network.indexerRpc);

@@ -45,6 +45,18 @@ export class DownloadError extends StorageError {
   }
 }
 
+// --- Validation ---
+
+const ROOT_HASH_REGEX = /^0x[0-9a-fA-F]{64}$/;
+
+function validateRootHash(rootHash: string): void {
+  if (!ROOT_HASH_REGEX.test(rootHash)) {
+    throw new DownloadError(
+      `Invalid root hash format: "${rootHash}". Expected 0x followed by 64 hex characters.`,
+    );
+  }
+}
+
 // --- Helper ---
 
 function buildRetryOpts(config: AppConfig): RetryOpts | undefined {
@@ -122,6 +134,7 @@ export async function downloadFile(
   outputPath: string,
   config: AppConfig,
 ): Promise<DownloadResult> {
+  validateRootHash(rootHash);
   const resolvedOutput = path.resolve(outputPath);
   const outputDir = path.dirname(resolvedOutput);
   if (!fs.existsSync(outputDir)) {
