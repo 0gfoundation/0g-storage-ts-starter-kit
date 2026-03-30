@@ -44,6 +44,9 @@ const resultRootHash = $<HTMLElement>('result-root-hash');
 const copyHashBtn = $<HTMLButtonElement>('copy-hash');
 const resultTxLink = $<HTMLAnchorElement>('result-tx-link');
 
+const badgeNetwork = $<HTMLSpanElement>('badge-network');
+const badgeMode = $<HTMLSpanElement>('badge-mode');
+
 const downloadHash = $<HTMLInputElement>('download-hash');
 const downloadBtn = $<HTMLButtonElement>('download-btn');
 const downloadStatus = $<HTMLDivElement>('download-status');
@@ -80,6 +83,14 @@ function refreshNetworkConfig() {
   const name = networkSelect.value as NetworkName;
   const mode = modeSelect.value as StorageMode;
   currentNetwork = getNetworkConfig(name, mode);
+  updateBadge();
+}
+
+function updateBadge() {
+  const networkLabel = currentNetwork.name === 'testnet' ? 'Testnet' : 'Mainnet';
+  const modeLabel = currentNetwork.mode === 'turbo' ? 'Turbo' : 'Standard';
+  badgeNetwork.textContent = networkLabel;
+  badgeMode.textContent = modeLabel;
 }
 
 // --- Wallet ---
@@ -164,11 +175,12 @@ async function handleUpload() {
   uploadResult.classList.add('hidden');
 
   try {
+    const networkLabel = `${currentNetwork.name} (${currentNetwork.mode})`;
     const result = await uploadFile(selectedFile, currentNetwork, signer, (msg) => {
-      showStatus(uploadStatus, msg, 'loading');
+      showStatus(uploadStatus, `[${networkLabel}] ${msg}`, 'loading');
     });
 
-    showStatus(uploadStatus, `Upload successful! (${currentNetwork.mode} mode)`, 'success');
+    showStatus(uploadStatus, `Upload successful on ${networkLabel}!`, 'success');
 
     resultRootHash.textContent = result.rootHash;
     resultTxLink.textContent = `${result.txHash.slice(0, 16)}...`;
@@ -191,11 +203,12 @@ async function handleDownload() {
   downloadResult.classList.add('hidden');
 
   try {
+    const networkLabel = `${currentNetwork.name} (${currentNetwork.mode})`;
     const result = await downloadFile(rootHash, currentNetwork, (msg) => {
-      showStatus(downloadStatus, msg, 'loading');
+      showStatus(downloadStatus, `[${networkLabel}] ${msg}`, 'loading');
     });
 
-    showStatus(downloadStatus, 'Download complete!', 'success');
+    showStatus(downloadStatus, `Download complete from ${networkLabel}!`, 'success');
     downloadCompleteMsg.textContent = `File downloaded: ${formatBytes(result.size)}`;
     downloadResult.classList.remove('hidden');
 

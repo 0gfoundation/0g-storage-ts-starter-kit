@@ -2,7 +2,7 @@
 
 A developer-friendly starter kit for [0G Storage](https://docs.0g.ai) — decentralized storage on the 0G network. Upload and download files using scripts, import as a library, or run the web UI with MetaMask.
 
-**SDK**: `@0gfoundation/0g-ts-sdk` v1.2.1 | **Networks**: Testnet (Galileo) & Mainnet
+**SDK**: `@0gfoundation/0g-ts-sdk` v1.2.1 | **Networks**: Testnet (Galileo) & Mainnet | **Modes**: Turbo & Standard
 
 ---
 
@@ -61,7 +61,8 @@ npm run dev
 
 Opens at `http://localhost:5173` with:
 - MetaMask wallet connect (pure ethers.js)
-- Network selector (testnet/mainnet)
+- Network selector (testnet/mainnet) + storage mode (turbo/standard)
+- Active network & mode badge displayed in header
 - File upload with drag-and-drop
 - File download by root hash
 
@@ -76,8 +77,8 @@ Import the core functions into your own project:
 ```typescript
 import { uploadFile, downloadFile, uploadData, getConfig } from './src/index.js';
 
-// Configure
-const config = getConfig({ network: 'testnet', privateKey: '0x...' });
+// Configure (defaults to testnet + turbo)
+const config = getConfig({ network: 'testnet', mode: 'turbo', privateKey: '0x...' });
 
 // Upload a file
 const { rootHash, txHash } = await uploadFile('./photo.jpg', config);
@@ -100,7 +101,7 @@ const results = await batchUpload(['a.txt', 'b.txt'], config);
 | `downloadFile(rootHash, outputPath, config)` | Download by root hash |
 | `uploadData(data, config)` | Upload string or Uint8Array via MemData |
 | `batchUpload(paths[], config)` | Upload multiple files sequentially |
-| `getConfig(overrides?)` | Load config from .env with optional overrides |
+| `getConfig(overrides?)` | Load config from .env with optional overrides (`network`, `mode`, `privateKey`) |
 | `createSigner(config)` | Create ethers.js wallet signer |
 | `createIndexer(config)` | Create 0G Indexer client |
 
@@ -119,7 +120,7 @@ const results = await batchUpload(['a.txt', 'b.txt'], config);
     storage.ts              # Core functions: upload, download, batch
     index.ts                # Barrel re-exports
 
-  scripts/                  # Runnable entry points
+  scripts/                  # Runnable entry points (all support --network, --mode, --key)
     upload.ts               # File upload script
     download.ts             # File download script
     upload-data.ts          # String/buffer upload (MemData)

@@ -119,6 +119,25 @@ select {
   cursor: pointer;
 }
 
+/* Network Badge */
+.network-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--primary-hover);
+  margin-bottom: 20px;
+}
+
+.badge-separator {
+  opacity: 0.4;
+}
+
 /* Cards */
 .card {
   background: var(--surface);
