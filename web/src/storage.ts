@@ -4,7 +4,11 @@ import type { NetworkConfig } from './config.js';
 
 const DEFAULT_CHUNK_SIZE = 256;
 const DEFAULT_SEGMENT_MAX_CHUNKS = 1024;
-const DEFAULT_SEGMENT_SIZE = DEFAULT_CHUNK_SIZE * DEFAULT_SEGMENT_MAX_CHUNKS; // 256KB
+
+/** Mirrors SDK's GetSplitNum: ceil division */
+function getSplitNum(total: number, unit: number): number {
+  return Math.floor((total - 1) / unit + 1);
+}
 
 export interface UploadResult {
   rootHash: string;
@@ -31,7 +35,7 @@ export async function uploadFile(
   const zgBlob = new ZgBlob(file);
   const indexer = new Indexer(network.indexerRpc);
 
-  const [tree, treeErr] = await zgBlob.merkleTree();
+  const [, treeErr] = await zgBlob.merkleTree();
   if (treeErr !== null) {
     throw new Error(`Merkle tree generation failed: ${treeErr}`);
   }
@@ -41,7 +45,7 @@ export async function uploadFile(
   const [tx, uploadErr] = await indexer.upload(
     zgBlob,
     network.rpcUrl,
-    signer as any,
+    signer as ethers.Signer,
   );
 
   if (uploadErr !== null) {
@@ -58,8 +62,11 @@ export async function uploadFile(
 /**
  * Download a file from 0G Storage in the browser.
  *
- * Since the SDK's indexer.download() uses fs.appendFileSync (Node-only),
- * we re-implement download using the SDK's HTTP primitives which work in browser.
+ * The SDK's indexer.download() uses fs.appendFileSync (Node-only), so we
+ * re-implement the download using the same algorithm as SDK's Downloader
+ * but writing to an in-memory buffer instead of disk.
+ *
+ * Mirrors: node_modules/@0gfoundation/0g-ts-sdk/lib.esm/transfer/Downloader.js
  */
 export async function downloadFile(
   rootHash: string,
@@ -76,17 +83,20 @@ export async function downloadFile(
     throw new Error('File not found on any storage node');
   }
 
-  // Try each node until one works
-  let fileInfo: any = null;
-  let workingNode: StorageNode | null = null;
+  // Pre-create all storage node clients
+  const nodes: StorageNode[] = locations.map(loc => new StorageNode(loc.url));
 
-  for (const loc of locations) {
+  // Get file info from the first responsive node
+  let fileInfo: {
+    tx: { size: number; seq: number; startEntryIndex: number };
+    finalized: boolean;
+  } | null = null;
+
+  for (const node of nodes) {
     try {
-      const node = new StorageNode(loc.url);
       const info = await node.getFileInfo(rootHash, true);
       if (info) {
-        fileInfo = info;
-        workingNode = node;
+        fileInfo = info as typeof fileInfo;
         break;
       }
     } catch {
@@ -94,75 +104,69 @@ export async function downloadFile(
     }
   }
 
-  if (!fileInfo || !workingNode) {
+  if (!fileInfo) {
     throw new Error('Could not retrieve file info from any storage node');
   }
 
   const fileSize = Number(fileInfo.tx.size);
   const txSeq = Number(fileInfo.tx.seq);
-  const numChunks = Math.ceil(fileSize / DEFAULT_CHUNK_SIZE);
-  const numSegments = Math.ceil(numChunks / DEFAULT_SEGMENT_MAX_CHUNKS);
+
+  // Mirror SDK's Downloader.downloadFileHelper() math exactly
+  const numChunks = getSplitNum(fileSize, DEFAULT_CHUNK_SIZE);
+  const startSegmentIndex = Math.floor(
+    Number(fileInfo.tx.startEntryIndex) / DEFAULT_SEGMENT_MAX_CHUNKS,
+  );
+  const endSegmentIndex = Math.floor(
+    (Number(fileInfo.tx.startEntryIndex) + numChunks - 1) / DEFAULT_SEGMENT_MAX_CHUNKS,
+  );
+  const numTasks = endSegmentIndex - startSegmentIndex + 1;
 
   onStatus?.('Downloading segments...', 0);
 
   const segments: Uint8Array[] = [];
-  let downloadedBytes = 0;
 
-  for (let segIdx = 0; segIdx < numSegments; segIdx++) {
-    const startChunkIdx = segIdx * DEFAULT_SEGMENT_MAX_CHUNKS;
-    const endChunkIdx = Math.min(startChunkIdx + DEFAULT_SEGMENT_MAX_CHUNKS, numChunks);
+  for (let taskInd = 0; taskInd < numTasks; taskInd++) {
+    const segmentIndex = taskInd; // segmentOffset is always 0
+    const startIndex = segmentIndex * DEFAULT_SEGMENT_MAX_CHUNKS;
+    let endIndex = startIndex + DEFAULT_SEGMENT_MAX_CHUNKS;
+    if (endIndex > numChunks) {
+      endIndex = numChunks;
+    }
 
-    try {
-      const segData = await workingNode.downloadSegmentByTxSeq(
-        txSeq,
-        startChunkIdx,
-        endChunkIdx,
-      );
+    // Try each node until one returns data
+    let segArray: Uint8Array | null = null;
 
-      // Decode base64 segment data
-      const bytes = ethers.decodeBase64(segData as string);
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[(taskInd + i) % nodes.length];
+      try {
+        const segment = await node.downloadSegmentByTxSeq(txSeq, startIndex, endIndex);
+        if (segment === null) continue;
 
-      // For the last segment, trim to actual file size
-      if (segIdx === numSegments - 1) {
-        const remainingBytes = fileSize - downloadedBytes;
-        segments.push(bytes.slice(0, remainingBytes));
-      } else {
-        segments.push(bytes);
-        downloadedBytes += bytes.length;
-      }
+        segArray = ethers.decodeBase64(segment as string);
 
-      const percent = Math.round(((segIdx + 1) / numSegments) * 100);
-      onStatus?.(`Downloading segments... ${percent}%`, percent);
-    } catch (err) {
-      // Try another node for this segment
-      let success = false;
-      for (const loc of locations) {
-        if (loc.url === (workingNode as any).url) continue;
-        try {
-          const fallbackNode = new StorageNode(loc.url);
-          const segData = await fallbackNode.downloadSegmentByTxSeq(
-            txSeq,
-            startChunkIdx,
-            endChunkIdx,
-          );
-          const bytes = ethers.decodeBase64(segData as string);
-          if (segIdx === numSegments - 1) {
-            const remainingBytes = fileSize - downloadedBytes;
-            segments.push(bytes.slice(0, remainingBytes));
-          } else {
-            segments.push(bytes);
-            downloadedBytes += bytes.length;
+        // Mirror SDK: trim padding from last segment's last chunk
+        if (startSegmentIndex + segmentIndex === endSegmentIndex) {
+          const lastChunkSize = fileSize % DEFAULT_CHUNK_SIZE;
+          if (lastChunkSize > 0) {
+            const paddings = DEFAULT_CHUNK_SIZE - lastChunkSize;
+            segArray = segArray.slice(0, segArray.length - paddings);
           }
-          success = true;
-          break;
-        } catch {
-          continue;
         }
-      }
-      if (!success) {
-        throw new Error(`Failed to download segment ${segIdx} from any node`);
+
+        break; // success
+      } catch {
+        continue;
       }
     }
+
+    if (!segArray) {
+      throw new Error(`Failed to download segment ${segmentIndex} from any node`);
+    }
+
+    segments.push(segArray);
+
+    const percent = Math.round(((taskInd + 1) / numTasks) * 100);
+    onStatus?.(`Downloading segments... ${percent}%`, percent);
   }
 
   onStatus?.('Download complete!', 100);
