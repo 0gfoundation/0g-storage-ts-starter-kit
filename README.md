@@ -201,9 +201,11 @@ STORAGE_MODE=standard
 
 ### Upload
 1. `ZgFile.fromFilePath(path)` prepares the file
-2. `file.merkleTree()` generates the Merkle tree for integrity
+2. `file.merkleTree()` generates the Merkle tree for integrity (must be called before upload)
 3. `indexer.upload(file, rpcUrl, signer)` submits the transaction and uploads data
 4. Returns `{ rootHash, txHash }` — save the rootHash to retrieve your file later
+
+**Root hash** is the permanent file identifier — a 0x-prefixed 66-char hex string derived from the file's Merkle tree. Deterministic for identical content.
 
 ### Download
 1. `indexer.download(rootHash, outputPath, true)` finds storage nodes with the file
@@ -224,10 +226,45 @@ const [tx, err] = await indexer.upload(memData, rpcUrl, signer);
 | Class | Use |
 |-------|-----|
 | `ZgFile` | Node.js file upload (`ZgFile.fromFilePath(path)`) |
-| `Blob` | Browser file upload (`new Blob(file)`) |
+| `Blob` | Browser file upload — alias as `ZgBlob` to avoid collision with native Blob |
 | `MemData` | In-memory data upload (`new MemData(uint8Array)`) |
 | `Indexer` | Upload/download orchestration |
 | `StorageNode` | Direct storage node RPC communication |
 | `KvClient` | Key-value storage operations |
 
+```typescript
+import { ZgFile, Indexer, MemData } from '@0gfoundation/0g-ts-sdk';             // Node.js
+import { Blob as ZgBlob, Indexer, StorageNode } from '@0gfoundation/0g-ts-sdk';  // Browser
+```
+
+### SDK Gotchas
+
+- **Flow contract auto-discovery**: The Indexer discovers the flow contract from the indexer URL automatically. Do NOT pass a flow contract address.
+- **Upload returns two shapes**: `indexer.upload()` returns `[tx, err]` where `tx` is either `{rootHash, txHash}` (single file) or `{rootHashes[], txHashes[]}` (fragmented file >4GB). Always handle both with `if ('rootHash' in tx)`.
+- **Browser downloads cannot use `indexer.download()`** — it calls `fs.appendFileSync` internally. The web UI reimplements download using `StorageNode.downloadSegmentByTxSeq()` with manual segment reassembly (see `web/src/storage.ts`).
+- **Signer cast**: `signer as any` is needed because the SDK expects ethers v5 Signer types but this project uses ethers v6. Runtime compatible, but TypeScript ESM/CJS type mismatch requires the cast.
+- **RetryOpts uses PascalCase**: `{ Retries, Interval, MaxGasPrice }` — the SDK requires this exact casing.
+- **`merkleTree()` must be called** before upload even though the return value is unused — it populates internal state on the file object.
+
 Full SDK docs: [github.com/0gfoundation/0g-ts-sdk](https://github.com/0gfoundation/0g-ts-sdk) | [docs.0g.ai](https://docs.0g.ai)
+
+---
+
+## Extending the Starter Kit
+
+### Adding a New Script
+1. Create `scripts/my-script.ts`
+2. Copy the Commander pattern from `scripts/upload.ts`
+3. Import from `'../src/index.js'` (`.js` extension required by NodeNext module resolution)
+4. Add npm script to `package.json`: `"my-script": "tsx scripts/my-script.ts"`
+
+### Adding a New Library Function
+1. Add function to `src/storage.ts` — take `AppConfig`, return typed result, throw `UploadError`/`DownloadError`
+2. Export from `src/index.ts`
+
+### Browser / Vite Notes
+- The SDK imports `fs` and `node:fs/promises` at module level. `web/vite.config.ts` aliases these to stubs in `web/src/stubs/`.
+- `vite-plugin-node-polyfills` provides crypto, buffer, stream, util, events, path polyfills.
+- Browser uploads use `new ZgBlob(file)` (SDK's Blob class, NOT native Blob).
+- `web/src/config.ts` duplicates network constants from `src/config.ts` — keep them in sync when adding networks.
+- Turbo and Standard are independent networks. A file uploaded to turbo is NOT downloadable from standard.
