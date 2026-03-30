@@ -2,4 +2,11 @@ node_modules/
 dist/
 uploads/
 downloads/
-.env 
+.env
+
+# Web frontend
+web/node_modules/
+web/dist/
+
+# Test artifacts
+test-uploads/*.tmp

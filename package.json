@@ -1,21 +1,35 @@
 {
-  "name": "0g-storage-cli",
-  "version": "1.0.0",
+  "name": "0g-storage-ts-starter",
+  "version": "2.0.0",
   "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    }
+  },
   "scripts": {
-    "start": "node dist/index.js",
-    "dev": "NODE_OPTIONS='--no-warnings' ts-node src/index.ts",
+    "upload": "tsx scripts/upload.ts",
+    "download": "tsx scripts/download.ts",
+    "upload:data": "tsx scripts/upload-data.ts",
+    "upload:batch": "tsx scripts/batch-upload.ts",
+    "test:all": "tsx scripts/test-all.ts",
+    "web": "cd web && npm run dev",
+    "web:build": "cd web && npm run build",
     "build": "tsc",
     "watch": "tsc -w"
   },
   "dependencies": {
-    "@0glabs/0g-ts-sdk": "^0.3.3",
+    "@0gfoundation/0g-ts-sdk": "^1.2.1",
     "commander": "^11.1.0",
+    "dotenv": "^16.3.1",
     "ethers": "^6.13.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }
 }
