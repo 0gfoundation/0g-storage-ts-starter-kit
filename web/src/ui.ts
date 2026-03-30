@@ -1,4 +1,4 @@
-import { NETWORKS, type NetworkName, type NetworkConfig } from './config.js';
+import { getNetworkConfig, type NetworkName, type StorageMode, type NetworkConfig } from './config.js';
 import {
   connectWallet,
   disconnectWallet,
@@ -15,7 +15,7 @@ import {
 } from './storage.js';
 
 // --- State ---
-let currentNetwork: NetworkConfig = NETWORKS.testnet;
+let currentNetwork: NetworkConfig = getNetworkConfig('testnet', 'turbo');
 let isConnected = false;
 let selectedFile: File | null = null;
 
@@ -23,6 +23,7 @@ let selectedFile: File | null = null;
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const networkSelect = $<HTMLSelectElement>('network-select');
+const modeSelect = $<HTMLSelectElement>('mode-select');
 const connectBtn = $<HTMLButtonElement>('connect-btn');
 const walletInfo = $<HTMLDivElement>('wallet-info');
 const walletAddress = $<HTMLSpanElement>('wallet-address');
@@ -75,6 +76,12 @@ function updateButtonStates() {
   downloadBtn.disabled = !downloadHash.value.trim().startsWith('0x');
 }
 
+function refreshNetworkConfig() {
+  const name = networkSelect.value as NetworkName;
+  const mode = modeSelect.value as StorageMode;
+  currentNetwork = getNetworkConfig(name, mode);
+}
+
 // --- Wallet ---
 async function handleConnect() {
   try {
@@ -108,8 +115,7 @@ function handleDisconnect() {
 }
 
 async function handleNetworkChange() {
-  const name = networkSelect.value as NetworkName;
-  currentNetwork = NETWORKS[name];
+  refreshNetworkConfig();
 
   if (isConnected) {
     try {
@@ -120,6 +126,11 @@ async function handleNetworkChange() {
       showStatus(uploadStatus, `Network switch failed: ${err.message}`, 'error');
     }
   }
+}
+
+function handleModeChange() {
+  refreshNetworkConfig();
+  // Mode change only affects the indexer URL — no chain switch needed
 }
 
 // --- File Selection ---
@@ -157,7 +168,7 @@ async function handleUpload() {
       showStatus(uploadStatus, msg, 'loading');
     });
 
-    showStatus(uploadStatus, 'Upload successful!', 'success');
+    showStatus(uploadStatus, `Upload successful! (${currentNetwork.mode} mode)`, 'success');
 
     resultRootHash.textContent = result.rootHash;
     resultTxLink.textContent = `${result.txHash.slice(0, 16)}...`;
@@ -203,6 +214,7 @@ export function initUI() {
   connectBtn.addEventListener('click', handleConnect);
   disconnectBtn.addEventListener('click', handleDisconnect);
   networkSelect.addEventListener('change', handleNetworkChange);
+  modeSelect.addEventListener('change', handleModeChange);
 
   // File events
   fileInput.addEventListener('change', () => {
@@ -253,7 +265,6 @@ export function initUI() {
   });
 
   onChainChanged(() => {
-    // Refresh on chain change
     window.location.reload();
   });
 }

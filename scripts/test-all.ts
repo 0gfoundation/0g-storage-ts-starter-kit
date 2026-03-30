@@ -3,7 +3,7 @@
  * Uses PRIVATE_KEY from .env
  *
  * Usage: npm run test:all
- *    or: npx tsx scripts/test-all.ts [--network testnet|mainnet]
+ *    or: npx tsx scripts/test-all.ts [--network testnet|mainnet] [--mode turbo|standard]
  */
 import 'dotenv/config';
 import fs from 'fs';
@@ -12,13 +12,15 @@ import { getConfig, uploadFile, downloadFile, uploadData, batchUpload } from '..
 
 const networkArg = process.argv.indexOf('--network');
 const network = networkArg !== -1 ? process.argv[networkArg + 1] : undefined;
+const modeArg = process.argv.indexOf('--mode');
+const mode = modeArg !== -1 ? process.argv[modeArg + 1] : undefined;
 
-const config = getConfig({ network });
+const config = getConfig({ network, mode });
 
 console.log('='.repeat(60));
 console.log('0G Storage - Test All Functions');
 console.log('='.repeat(60));
-console.log(`Network:     ${config.network.name}`);
+console.log(`Network:     ${config.network.name} (${config.network.mode})`);
 console.log(`RPC:         ${config.network.rpcUrl}`);
 console.log(`Indexer:     ${config.network.indexerRpc}`);
 console.log(`Private Key: ${config.privateKey ? config.privateKey.substring(0, 8) + '...' : 'NOT SET'}`);

@@ -20,4 +20,4 @@ export {
   NETWORKS,
 } from './config.js';
 
-export type { NetworkName, NetworkConfig, AppConfig } from './config.js';
+export type { NetworkName, NetworkConfig, AppConfig, StorageMode } from './config.js';

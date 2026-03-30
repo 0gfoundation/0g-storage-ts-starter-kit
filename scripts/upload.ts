@@ -9,11 +9,12 @@ program
   .description('Upload a file to 0G Storage')
   .argument('<filepath>', 'Path to the file to upload')
   .option('-n, --network <name>', 'Network: testnet or mainnet')
+  .option('-m, --mode <mode>', 'Storage mode: turbo or standard (default: turbo)')
   .option('-k, --key <key>', 'Private key for signing')
-  .action(async (filepath: string, opts: { network?: string; key?: string }) => {
+  .action(async (filepath: string, opts: { network?: string; mode?: string; key?: string }) => {
     try {
-      const config = getConfig({ network: opts.network, privateKey: opts.key });
-      console.log(`Uploading ${filepath} to ${config.network.name}...`);
+      const config = getConfig({ network: opts.network, mode: opts.mode, privateKey: opts.key });
+      console.log(`Uploading ${filepath} to ${config.network.name} (${config.network.mode})...`);
 
       const result = await uploadFile(filepath, config);
 

@@ -18,6 +18,7 @@ cp .env.example .env
 Edit `.env` with your private key:
 ```env
 NETWORK=testnet
+STORAGE_MODE=turbo
 PRIVATE_KEY=your_private_key_here
 ```
 
@@ -40,9 +41,10 @@ npm run upload:batch -- file1.txt file2.txt file3.txt
 npm run test:all
 ```
 
-Override network or key per-command:
+Override network, mode, or key per-command:
 ```bash
-npm run upload -- ./file.txt --network mainnet --key 0xYOUR_KEY
+npm run upload -- ./file.txt --network mainnet --mode turbo --key 0xYOUR_KEY
+npm run upload -- ./file.txt --mode standard    # Use standard mode
 ```
 
 ---
@@ -141,12 +143,34 @@ const results = await batchUpload(['a.txt', 'b.txt'], config);
 | | Testnet (Galileo) | Mainnet |
 |-|-------------------|---------|
 | RPC | `https://evmrpc-testnet.0g.ai` | `https://evmrpc.0g.ai` |
-| Indexer | `https://indexer-storage-testnet-turbo.0g.ai` | `https://indexer-storage-turbo.0g.ai` |
 | Chain ID | 16602 | 16661 |
 | Explorer | [chainscan-galileo.0g.ai](https://chainscan-galileo.0g.ai) | [chainscan.0g.ai](https://chainscan.0g.ai) |
 | Token | A0GI | A0GI |
 
-> The SDK auto-discovers the flow contract address from indexer nodes. No need to configure it manually.
+### Storage Modes: Turbo vs Standard
+
+0G Storage operates two independent storage networks with different pricing:
+
+| | Turbo | Standard |
+|--|-------|----------|
+| Speed | Faster, more reliable | Standard speed |
+| Pricing | Higher fees | Lower fees |
+| Testnet Indexer | `indexer-storage-testnet-turbo.0g.ai` | `indexer-storage-testnet-standard.0g.ai` |
+| Mainnet Indexer | `indexer-storage-turbo.0g.ai` | `indexer-storage.0g.ai` |
+| Status | Active | May be unavailable |
+
+Each mode uses its own flow contract, indexer, and storage node network. The SDK auto-discovers the correct flow contract from the indexer — just select your mode.
+
+```bash
+# Default is turbo
+npm run upload -- ./file.txt
+
+# Use standard mode
+npm run upload -- ./file.txt --mode standard
+
+# Set in .env
+STORAGE_MODE=standard
+```
 
 ---
 

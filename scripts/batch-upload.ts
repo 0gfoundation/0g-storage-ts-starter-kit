@@ -9,12 +9,13 @@ program
   .description('Upload multiple files to 0G Storage')
   .argument('<files...>', 'File paths to upload')
   .option('-n, --network <name>', 'Network: testnet or mainnet')
+  .option('-m, --mode <mode>', 'Storage mode: turbo or standard (default: turbo)')
   .option('-k, --key <key>', 'Private key for signing')
-  .action(async (files: string[], opts: { network?: string; key?: string }) => {
+  .action(async (files: string[], opts: { network?: string; mode?: string; key?: string }) => {
     try {
-      const config = getConfig({ network: opts.network, privateKey: opts.key });
+      const config = getConfig({ network: opts.network, mode: opts.mode, privateKey: opts.key });
 
-      console.log(`Batch uploading ${files.length} file(s) to ${config.network.name}...`);
+      console.log(`Batch uploading ${files.length} file(s) to ${config.network.name} (${config.network.mode})...`);
       files.forEach((f, i) => console.log(`  ${i + 1}. ${f}`));
       console.log();
 

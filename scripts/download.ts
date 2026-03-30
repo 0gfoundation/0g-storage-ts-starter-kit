@@ -10,13 +10,14 @@ program
   .description('Download a file from 0G Storage')
   .argument('<roothash>', 'Root hash of the file to download')
   .option('-n, --network <name>', 'Network: testnet or mainnet')
+  .option('-m, --mode <mode>', 'Storage mode: turbo or standard (default: turbo)')
   .option('-o, --output <path>', 'Output file path (default: ./downloads/<roothash>)')
-  .action(async (roothash: string, opts: { network?: string; output?: string }) => {
+  .action(async (roothash: string, opts: { network?: string; mode?: string; output?: string }) => {
     try {
-      const config = getConfig({ network: opts.network });
+      const config = getConfig({ network: opts.network, mode: opts.mode });
       const outputPath = opts.output || path.join('downloads', roothash);
 
-      console.log(`Downloading from ${config.network.name}...`);
+      console.log(`Downloading from ${config.network.name} (${config.network.mode})...`);
       console.log('Root Hash:', roothash);
 
       const result = await downloadFile(roothash, outputPath, config);
