@@ -88,7 +88,13 @@ Opens at `http://localhost:5173` with:
 - File upload with drag-and-drop
 - File download by root hash
 
-> Requires [MetaMask](https://metamask.io) browser extension.
+> Requires [MetaMask](https://metamask.io) browser extension for uploads. Downloads work without it.
+
+**Browser notes:**
+- The SDK imports Node.js modules (`fs`, `crypto`) at load time. Vite config aliases these to stubs in `web/src/stubs/` via `vite-plugin-node-polyfills`.
+- Browser uploads use `Blob` from the SDK (aliased as `ZgBlob` to avoid collision with native `Blob`).
+- Browser downloads reimplement the SDK's download algorithm in-memory since `indexer.download()` uses `fs.appendFileSync` (Node-only). See `web/src/storage.ts`.
+- `web/src/config.ts` duplicates network constants from `src/config.ts` — keep them in sync when adding networks.
 
 ---
 
@@ -259,23 +265,3 @@ import { Blob as ZgBlob, Indexer, StorageNode } from '@0gfoundation/0g-ts-sdk'; 
 
 Full SDK docs: [github.com/0gfoundation/0g-ts-sdk](https://github.com/0gfoundation/0g-ts-sdk) | [docs.0g.ai](https://docs.0g.ai)
 
----
-
-## Extending the Starter Kit
-
-### Adding a New Script
-1. Create `scripts/my-script.ts`
-2. Copy the Commander pattern from `scripts/upload.ts`
-3. Import from `'../src/index.js'` (`.js` extension required by NodeNext module resolution)
-4. Add npm script to `package.json`: `"my-script": "tsx scripts/my-script.ts"`
-
-### Adding a New Library Function
-1. Add function to `src/storage.ts` — take `AppConfig`, return typed result, throw `UploadError`/`DownloadError`
-2. Export from `src/index.ts`
-
-### Browser / Vite Notes
-- The SDK imports `fs` and `node:fs/promises` at module level. `web/vite.config.ts` aliases these to stubs in `web/src/stubs/`.
-- `vite-plugin-node-polyfills` provides crypto, buffer, stream, util, events, path polyfills.
-- Browser uploads use `new ZgBlob(file)` (SDK's Blob class, NOT native Blob).
-- `web/src/config.ts` duplicates network constants from `src/config.ts` — keep them in sync when adding networks.
-- Turbo and Standard are independent networks. A file uploaded to turbo is NOT downloadable from standard.
