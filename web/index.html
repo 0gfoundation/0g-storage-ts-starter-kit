@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>0G Storage</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="header-left">
+        <h1>0G Storage</h1>
+        <span class="subtitle">Decentralized Storage Demo</span>
+      </div>
+      <div class="header-right">
+        <select id="network-select">
+          <option value="testnet">Testnet</option>
+          <option value="mainnet">Mainnet</option>
+        </select>
+        <select id="mode-select">
+          <option value="turbo">Turbo</option>
+          <option value="standard">Standard</option>
+        </select>
+        <button id="connect-btn" class="btn btn-primary">Connect Wallet</button>
+        <div id="wallet-info" class="hidden">
+          <span id="wallet-address" class="address"></span>
+          <span id="wallet-balance" class="balance"></span>
+          <button id="disconnect-btn" class="btn btn-small">Disconnect</button>
+        </div>
+      </div>
+    </header>
+
+    <div id="no-metamask" class="banner banner-warning hidden">
+      MetaMask is required. Please install the
+      <a href="https://metamask.io" target="_blank">MetaMask extension</a> to use this app.
+    </div>
+
+    <div id="network-badge" class="network-badge">
+      <span id="badge-network">Testnet</span>
+      <span class="badge-separator">&middot;</span>
+      <span id="badge-mode">Turbo</span>
+    </div>
+
+    <main>
+      <section id="upload-section" class="card">
+        <h2>Upload File</h2>
+        <div id="drop-zone" class="drop-zone">
+          <input type="file" id="file-input" />
+          <div class="drop-zone-text">
+            <p class="drop-icon">+</p>
+            <p>Drag & drop a file here or click to select</p>
+          </div>
+        </div>
+        <div id="file-preview" class="file-preview hidden">
+          <span id="file-name"></span>
+          <span id="file-size"></span>
+          <button id="clear-file" class="btn btn-small">Clear</button>
+        </div>
+        <button id="upload-btn" class="btn btn-primary btn-full" disabled>
+          Upload to 0G Storage
+        </button>
+        <div id="upload-status" class="status hidden"></div>
+        <div id="upload-result" class="result hidden">
+          <div class="result-row">
+            <label>Root Hash</label>
+            <div class="result-value">
+              <code id="result-root-hash"></code>
+              <button id="copy-hash" class="btn btn-small">Copy</button>
+            </div>
+          </div>
+          <div class="result-row">
+            <label>Transaction</label>
+            <div class="result-value">
+              <a id="result-tx-link" target="_blank" rel="noopener"></a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="download-section" class="card">
+        <h2>Download File</h2>
+        <div class="input-group">
+          <input
+            type="text"
+            id="download-hash"
+            placeholder="Enter root hash (0x...)"
+            spellcheck="false"
+          />
+        </div>
+        <button id="download-btn" class="btn btn-primary btn-full" disabled>
+          Download from 0G Storage
+        </button>
+        <div id="download-status" class="status hidden"></div>
+        <div id="download-result" class="result hidden">
+          <p id="download-complete-msg"></p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        Built with
+        <a href="https://www.npmjs.com/package/@0gfoundation/0g-ts-sdk" target="_blank">@0gfoundation/0g-ts-sdk</a>
+        &middot;
+        <a href="https://docs.0g.ai" target="_blank">Docs</a>
+      </p>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

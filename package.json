@@ -1,31 +1,36 @@
 {
-  "name": "0g-storage-api",
-  "version": "1.0.0",
+  "name": "0g-storage-ts-starter",
+  "engines": { "node": ">=18" },
+  "version": "2.0.0",
   "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    }
+  },
   "scripts": {
-    "start": "node dist/index.js",
-    "dev": "NODE_OPTIONS='--no-warnings' nodemon",
+    "upload": "tsx scripts/upload.ts",
+    "download": "tsx scripts/download.ts",
+    "upload:data": "tsx scripts/upload-data.ts",
+    "upload:batch": "tsx scripts/batch-upload.ts",
+    "test:all": "tsx scripts/test-all.ts",
+    "web": "cd web && npm run dev",
+    "web:build": "cd web && npm run build",
     "build": "tsc",
-    "watch": "tsc -w",
-    "test-sdk": "node --no-warnings --loader ts-node/esm src/test-sdk.ts"
+    "watch": "tsc -w"
   },
   "dependencies": {
-    "@0glabs/0g-ts-sdk": "^0.3.3",
-    "@types/express": "^4.17.21",
-    "@types/swagger-jsdoc": "^6.0.4",
-    "@types/swagger-ui-express": "^4.1.7",
+    "@0gfoundation/0g-ts-sdk": "^1.2.1",
+    "commander": "^11.1.0",
     "dotenv": "^16.3.1",
-    "ethers": "^6.9.0",
-    "express": "^4.18.2",
-    "multer": "^1.4.5-lts.1",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+    "ethers": "^6.13.1"
   },
   "devDependencies": {
-    "@types/multer": "^1.4.12",
     "@types/node": "^20.11.0",
-    "nodemon": "^3.0.2",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }
 }

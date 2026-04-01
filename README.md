@@ -1,167 +1,267 @@
-# 0G Storage TypeScript SDK Starter Kit
+# 0G Storage TypeScript Starter Kit
 
-This repository demonstrates how to integrate and use the 0G Storage TypeScript SDK (`@0glabs/0g-ts-sdk` v0.3.3) in your applications. It provides implementation examples using the 0G decentralized storage network.
+A developer-friendly starter kit for [0G Storage](https://docs.0g.ai) — decentralized storage on the 0G network. Upload and download files using scripts, import as a library, or run the web UI with MetaMask.
 
-## Repository Branches
+**SDK**: `@0gfoundation/0g-ts-sdk` v1.2.1 | **Networks**: Testnet (Galileo) & Mainnet | **Modes**: Turbo & Standard
 
-### 1. Master Branch (Current)
-REST API implementation using Express framework with Swagger documentation.
-```bash
-git checkout master
-```
+---
 
-- Features:
-  - RESTful endpoints for upload/download
-  - Swagger UI for API testing and documentation
-  - TypeScript implementation for type safety
+## Prerequisites
 
-### 2. CLI Version Branch
-Command-line interface implementation will be available in the cli-version branch.
-```bash
-git checkout cli-version
-```
+- **Node.js** >= 18
+- **npm**
+- **A wallet with 0G tokens** — uploads require gas fees
+  - Testnet faucet: [faucet.0g.ai](https://faucet.0g.ai) (0.1 0G/day)
+  - Export your private key from MetaMask: Account Details → Show Private Key
+- **MetaMask** (for web UI only — scripts don't need it)
 
-- Features:
-  - Direct file upload/download via CLI
-  - Command-line arguments for configuration
-  - TypeScript implementation
+---
 
-## SDK Implementation (Master Branch)
+## Quick Start
 
-### Storage Client Setup
-```typescript
-import { Indexer, ZgFile } from '@0glabs/0g-ts-sdk';
-import { ethers } from 'ethers';
+### 1. Install & Configure
 
-// Initialize provider and signer
-const provider = new ethers.JsonRpcProvider(RPC_URL);
-const signer = new ethers.Wallet(PRIVATE_KEY, provider);
-
-// Initialize indexer with new syntax
-const indexer = new Indexer(INDEXER_RPC);
-```
-
-### File Operations
-
-#### Upload Implementation
-The upload process involves both API handling and SDK operations:
-
-```typescript
-// Create ZgFile from file path
-const zgFile = await ZgFile.fromFilePath(filePath);
-const [tree, treeErr] = await zgFile.merkleTree();
-
-if (treeErr) {
-  throw new Error(`Merkle tree error: ${treeErr}`);
-}
-
-// Upload file
-const [tx, uploadErr] = await indexer.upload(zgFile, RPC_URL, signer);
-
-if (uploadErr) {
-  throw new Error(`Upload error: ${uploadErr}`);
-}
-
-await zgFile.close();
-
-// Get file identifier and transaction hash from response
-const rootHash = tx.rootHash;
-const transactionHash = tx.txHash;
-```
-
-What happens during upload:
-- File is received via multipart form upload
-- SDK creates a ZgFile instance from the uploaded file
-- Merkle tree is generated for the file
-- File is uploaded to the 0G Storage network
-- Root hash and transaction hash are returned
-
-#### Download Implementation
-The download process retrieves files using their root hash:
-
-```typescript
-const err = await indexer.download(rootHash, outputPath, true);
-```
-
-What happens during download:
-- Root hash is used to locate the file in the network
-- File is downloaded to a local path
-- Downloaded file is verified
-- File is streamed to the client
-
-## Usage
-
-1. Clone the repository:
-```bash
-git clone https://github.com/0glabs/0g-storage-ts-starter-kit
-```
-
-2. Navigate to the project directory:
-```bash
-cd 0g-storage-ts-starter-kit
-```
-
-3. Install dependencies:
 ```bash
 npm install
-```
-
-4. Copy the .env.example file to .env and set your private key:
-```bash
 cp .env.example .env
 ```
 
-5. Start the server:
-```bash
-npm start
+Edit `.env` with your private key:
+```env
+NETWORK=testnet
+STORAGE_MODE=turbo
+PRIVATE_KEY=your_private_key_here
 ```
 
-6. Access Swagger UI: http://localhost:3000/api-docs
+### 2. Run Scripts
 
-7. Available Endpoints:
-   - POST /upload - Upload a file
-     - Request: multipart/form-data with 'file' field
-     - Response: JSON with rootHash and transactionHash
-   - GET /download/{rootHash} - Download a file
-     - Request: rootHash in URL path
-     - Response: File content stream
+```bash
+# Upload a file
+npm run upload -- ./path/to/file.txt
+
+# Download by root hash (saves to ./downloads/<roothash>)
+npm run download -- 0xabc123...
+
+# Download to a specific path
+npm run download -- 0xabc123... --output ./my-file.txt
+
+# Upload string data (via MemData)
+npm run upload:data -- -d "Hello, 0G Storage!"
+
+# Upload file contents as raw buffer (via MemData)
+npm run upload:data -- -f ./data.bin
+
+# Upload multiple files
+npm run upload:batch -- file1.txt file2.txt file3.txt
+
+# Run all integration tests
+npm run test:all
+
+# Start the web UI (browser)
+npm run web
+```
+
+Override network, mode, or key per-command:
+```bash
+npm run upload -- ./file.txt --network mainnet --mode turbo --key 0xYOUR_KEY
+npm run upload -- ./file.txt --mode standard    # Use standard mode
+```
+
+> Note: Downloads don't require a private key — only uploads need signing.
+
+---
+
+## Web UI (Optional)
+
+A browser-based upload/download interface with MetaMask wallet connection.
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Opens at `http://localhost:5173` with:
+- MetaMask wallet connect (pure ethers.js)
+- Network selector (testnet/mainnet) + storage mode (turbo/standard)
+- Active network & mode badge displayed in header
+- File upload with drag-and-drop
+- File download by root hash
+
+> Requires [MetaMask](https://metamask.io) browser extension for uploads. Downloads work without it.
+
+**Browser notes:**
+- The SDK imports Node.js modules (`fs`, `crypto`) at load time. Vite config aliases these to stubs in `web/src/stubs/` via `vite-plugin-node-polyfills`.
+- Browser uploads use `Blob` from the SDK (aliased as `ZgBlob` to avoid collision with native `Blob`).
+- Browser downloads reimplement the SDK's download algorithm in-memory since `indexer.download()` uses `fs.appendFileSync` (Node-only). See `web/src/storage.ts`.
+- `web/src/config.ts` duplicates network constants from `src/config.ts` — keep them in sync when adding networks.
+
+---
+
+## Use as a Library
+
+Import the core functions into your own project:
+
+```typescript
+import { uploadFile, downloadFile, uploadData, batchUpload, getConfig } from './src/index.js';
+
+// Configure (defaults to testnet + turbo)
+const config = getConfig({ network: 'testnet', mode: 'turbo', privateKey: '0x...' });
+
+// Upload a file
+const { rootHash, txHash } = await uploadFile('./photo.jpg', config);
+
+// Download a file
+await downloadFile(rootHash, './downloaded-photo.jpg', config);
+
+// Upload raw data (string or Uint8Array)
+const result = await uploadData('Hello world!', config);
+
+// Batch upload
+const results = await batchUpload(['a.txt', 'b.txt'], config);
+```
+
+### Available Functions
+
+| Function | Description |
+|----------|-------------|
+| `uploadFile(path, config)` | Upload a file from filesystem |
+| `downloadFile(rootHash, outputPath, config)` | Download by root hash |
+| `uploadData(data, config)` | Upload string or Uint8Array via MemData |
+| `batchUpload(paths[], config)` | Upload multiple files sequentially |
+| `getConfig(overrides?)` | Load config from .env with optional overrides (`network`, `mode`, `privateKey`) |
+| `createSigner(config)` | Create ethers.js wallet signer |
+| `createIndexer(config)` | Create 0G Indexer client |
+
+---
+
+## Project Structure
+
+```
+0g-storage-ts-starter/
+  .env.example              # Config template
+  package.json
+  tsconfig.json
+
+  src/                      # Library (importable)
+    config.ts               # Network presets, .env loading
+    storage.ts              # Core functions: upload, download, batch
+    index.ts                # Barrel re-exports
+
+  scripts/                  # Runnable entry points (all support --network, --mode, --key)
+    upload.ts               # File upload script
+    download.ts             # File download script
+    upload-data.ts          # String/buffer upload (MemData)
+    batch-upload.ts         # Multi-file upload
+    test-all.ts             # Integration test suite
+
+  web/                      # Optional: Browser UI
+    index.html              # Single-page app
+    src/
+      config.ts             # Browser-safe network constants
+      wallet.ts             # MetaMask connect (pure ethers)
+      storage.ts            # Browser upload/download
+      ui.ts                 # DOM event handling
+      style.css
+```
+
+---
 
 ## Network Configuration
 
-The application supports both Testnet and Mainnet. Configure via environment variables in `.env`:
+| | Testnet (Galileo) | Mainnet |
+|-|-------------------|---------|
+| RPC | `https://evmrpc-testnet.0g.ai` | `https://evmrpc.0g.ai` |
+| Chain ID | 16602 | 16661 |
+| Explorer | [chainscan-galileo.0g.ai](https://chainscan-galileo.0g.ai) | [chainscan.0g.ai](https://chainscan.0g.ai) |
+| Token | 0G | 0G |
 
-### Testnet (Default)
+### Storage Modes: Turbo vs Standard
+
+0G Storage operates two independent storage networks with different pricing. Each mode has its own flow contract, indexer, and storage nodes. A file uploaded to turbo is NOT available on standard.
+
+| | Turbo | Standard |
+|--|-------|----------|
+| Speed | Faster, more reliable | Standard speed |
+| Pricing | Higher fees | Lower fees |
+
+#### [Testnet (Galileo)](https://docs.0g.ai/developer-hub/testnet/testnet-overview)
+
+| | Turbo | Standard |
+|--|-------|----------|
+| Indexer | `https://indexer-storage-testnet-turbo.0g.ai` | `https://indexer-storage-testnet-standard.0g.ai` |
+| Status | Active | Under maintenance |
+
+#### [Mainnet](https://docs.0g.ai/developer-hub/mainnet/mainnet-overview)
+
+| | Turbo | Standard |
+|--|-------|----------|
+| Indexer | `https://indexer-storage-turbo.0g.ai` | `https://indexer-storage.0g.ai` |
+| Status | Active | Under maintenance |
+
+The SDK auto-discovers the correct flow contract from the indexer — just select your mode.
+
 ```bash
-RPC_URL=https://evmrpc-testnet.0g.ai
-INDEXER_RPC=https://indexer-storage-testnet-turbo.0g.ai
+# Default is turbo
+npm run upload -- ./file.txt
+
+# Use standard mode (when available)
+npm run upload -- ./file.txt --mode standard
+
+# Set in .env
+STORAGE_MODE=standard
 ```
 
-### Mainnet
-```bash
-RPC_URL=https://evmrpc.0g.ai
-INDEXER_RPC=https://indexer-storage.0g.ai
+---
+
+## How It Works
+
+### Upload
+1. `ZgFile.fromFilePath(path)` prepares the file
+2. `file.merkleTree()` generates the Merkle tree for integrity (must be called before upload)
+3. `indexer.upload(file, rpcUrl, signer)` submits the transaction and uploads data
+4. Returns `{ rootHash, txHash }` — save the rootHash to retrieve your file later
+
+**Root hash** is the permanent file identifier — a 0x-prefixed 66-char hex string derived from the file's Merkle tree. Deterministic for identical content.
+
+### Download
+1. `indexer.download(rootHash, outputPath, true)` finds storage nodes with the file
+2. Downloads segments and verifies integrity via Merkle proofs
+3. Saves the reconstructed file to the output path
+
+### MemData Upload
+For uploading strings or buffers without writing to disk first:
+```typescript
+const memData = new MemData(new TextEncoder().encode('Hello!'));
+const [tx, err] = await indexer.upload(memData, rpcUrl, signer);
 ```
 
-| Network | RPC URL | Indexer RPC |
-|---------|---------|-------------|
-| Testnet | `https://evmrpc-testnet.0g.ai` | `https://indexer-storage-testnet-turbo.0g.ai` |
-| Mainnet | `https://evmrpc.0g.ai` | `https://indexer-storage.0g.ai` |
+---
 
-## Best Practices
-1. **Error Handling**:
-   - Proper error handling for file operations
-   - Validation of uploaded files
-   - Comprehensive error messages for debugging
+## SDK Reference
 
-2. **Security**:
-   - Environment variables for sensitive data
-   - Private key protection
-   - Input validation
+| Class | Use |
+|-------|-----|
+| `ZgFile` | Node.js file upload (`ZgFile.fromFilePath(path)`) |
+| `Blob` | Browser file upload — alias as `ZgBlob` to avoid collision with native Blob |
+| `MemData` | In-memory data upload (`new MemData(uint8Array)`) |
+| `Indexer` | Upload/download orchestration |
+| `StorageNode` | Direct storage node RPC communication |
+| `KvClient` | Key-value storage operations |
 
-3. **Resource Management**:
-   - Proper file cleanup after operations
-   - Closing file handles
-   - Memory efficient file processing
+```typescript
+import { ZgFile, Indexer, MemData } from '@0gfoundation/0g-ts-sdk';             // Node.js
+import { Blob as ZgBlob, Indexer, StorageNode } from '@0gfoundation/0g-ts-sdk';  // Browser
+```
 
-## Next Steps
-Explore advanced SDK features in the [0G Storage TypeScript SDK documentation](https://github.com/0glabs/0g-ts-sdk). Learn more about the [0G Storage Network](https://docs.0g.ai/0g-storage). 
+### SDK Gotchas
+
+- **Flow contract auto-discovery**: The Indexer discovers the flow contract from the indexer URL automatically. Do NOT pass a flow contract address.
+- **Upload returns two shapes**: `indexer.upload()` returns `[tx, err]` where `tx` is either `{rootHash, txHash}` (single file) or `{rootHashes[], txHashes[]}` (fragmented file >4GB). Always handle both with `if ('rootHash' in tx)`.
+- **Browser downloads cannot use `indexer.download()`** — it calls `fs.appendFileSync` internally. The web UI reimplements download using `StorageNode.downloadSegmentByTxSeq()` with manual segment reassembly (see `web/src/storage.ts`).
+- **Signer cast**: `signer as any` is needed because the SDK expects ethers v5 Signer types but this project uses ethers v6. Runtime compatible, but TypeScript ESM/CJS type mismatch requires the cast.
+- **RetryOpts uses PascalCase**: `{ Retries, Interval, MaxGasPrice }` — the SDK requires this exact casing.
+- **`merkleTree()` must be called** before upload even though the return value is unused — it populates internal state on the file object.
+
+Full SDK docs: [github.com/0gfoundation/0g-ts-sdk](https://github.com/0gfoundation/0g-ts-sdk) | [docs.0g.ai](https://docs.0g.ai)
+
