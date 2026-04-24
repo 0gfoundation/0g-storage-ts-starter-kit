@@ -57,6 +57,33 @@
           <span id="file-size"></span>
           <button id="clear-file" class="btn btn-small">Clear</button>
         </div>
+        <div class="encryption-panel">
+          <label class="checkbox-row">
+            <input type="checkbox" id="encrypt-toggle" />
+            <span>Encrypt before upload</span>
+          </label>
+          <div id="encrypt-options" class="encrypt-options hidden">
+            <div class="input-group">
+              <label for="encrypt-mode">Mode</label>
+              <select id="encrypt-mode">
+                <option value="aes256">AES-256 (symmetric)</option>
+                <option value="ecies">ECIES (to recipient pubkey)</option>
+              </select>
+            </div>
+            <div id="aes-key-row" class="input-group">
+              <label for="encrypt-key">AES key (64 hex, optional)</label>
+              <div class="row-flex">
+                <input type="text" id="encrypt-key" placeholder="0x... (leave blank to generate)" spellcheck="false" />
+                <button id="encrypt-gen-key" class="btn btn-small" type="button">Generate</button>
+              </div>
+            </div>
+            <div id="ecies-pub-row" class="input-group hidden">
+              <label for="encrypt-recipient">Recipient compressed secp256k1 pubkey</label>
+              <input type="text" id="encrypt-recipient" placeholder="0x02... (33 bytes / 66 hex)" spellcheck="false" />
+            </div>
+          </div>
+        </div>
+
         <button id="upload-btn" class="btn btn-primary btn-full" disabled>
           Upload to 0G Storage
         </button>
@@ -75,6 +102,14 @@
               <a id="result-tx-link" target="_blank" rel="noopener"></a>
             </div>
           </div>
+          <div id="result-enc-key-row" class="result-row hidden">
+            <label>Decryption key</label>
+            <div class="result-value">
+              <code id="result-enc-key"></code>
+              <button id="copy-enc-key" class="btn btn-small">Copy</button>
+            </div>
+            <p class="warn-text">Save this key — without it the file is unrecoverable.</p>
+          </div>
         </div>
       </section>
 
@@ -88,6 +123,23 @@
             spellcheck="false"
           />
         </div>
+
+        <div id="peek-info" class="peek-info hidden"></div>
+
+        <div id="decrypt-options" class="encrypt-options hidden">
+          <div id="decrypt-aes-row" class="input-group">
+            <label for="decrypt-key">AES-256 key (64 hex)</label>
+            <input type="text" id="decrypt-key" placeholder="0x..." spellcheck="false" />
+          </div>
+          <div id="decrypt-ecies-row" class="input-group hidden">
+            <label for="decrypt-privkey">Private key (secp256k1) &mdash; stays in your browser</label>
+            <input type="text" id="decrypt-privkey" placeholder="0x..." spellcheck="false" />
+            <p class="warn-text">
+              Pasting a private key into a web UI is risky. Only use this with keys you do not use for funds.
+            </p>
+          </div>
+        </div>
+
         <button id="download-btn" class="btn btn-primary btn-full" disabled>
           Download from 0G Storage
         </button>

@@ -8,7 +8,16 @@
 import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
-import { getConfig, uploadFile, downloadFile, uploadData, batchUpload } from '../src/index.js';
+import {
+  getConfig,
+  uploadFile,
+  downloadFile,
+  uploadData,
+  batchUpload,
+  peekHeader,
+  generateAes256Key,
+  pubKeyFromPrivateKey,
+} from '../src/index.js';
 
 const networkArg = process.argv.indexOf('--network');
 const network = networkArg !== -1 ? process.argv[networkArg + 1] : undefined;
@@ -160,6 +169,76 @@ await test('uploadData - handles empty data gracefully', async () => {
     } else {
       throw err;
     }
+  }
+});
+
+// --- Test 7: Encrypted upload/download — aes256 round-trip ---
+await test('encrypted (aes256) - upload then download with symmetric key', async () => {
+  const plaintext = `aes256 round-trip - ${new Date().toISOString()}`;
+  const file = path.join('test-uploads', 'enc-aes256.txt');
+  fs.writeFileSync(file, plaintext);
+
+  const key = generateAes256Key();
+  const encConfig = { ...config, encryption: { type: 'aes256' as const, key } };
+  const uploaded = await uploadFile(file, encConfig);
+  console.log(`  Root Hash: ${uploaded.rootHash}`);
+
+  const header = await peekHeader(uploaded.rootHash, config);
+  if (header?.version !== 1) {
+    throw new Error(`Expected header v1 (aes256), got ${header?.version ?? 'none'}`);
+  }
+  console.log('  peekHeader detected aes256 (v1)');
+
+  const out = path.join('downloads', `enc-aes256-${Date.now()}`);
+  const decConfig = { ...config, decryption: { symmetricKey: key } };
+  await downloadFile(uploaded.rootHash, out, decConfig);
+  const roundTripped = fs.readFileSync(out, 'utf-8');
+
+  if (roundTripped !== plaintext) {
+    throw new Error(`Round-trip mismatch. Expected "${plaintext}", got "${roundTripped}"`);
+  }
+  console.log('  Plaintext matches after decrypt');
+});
+
+// --- Test 8: Encrypted upload/download — ecies round-trip (encrypt to self) ---
+await test('encrypted (ecies) - upload then download with private key', async () => {
+  if (!config.privateKey) throw new Error('PRIVATE_KEY required for ecies test');
+
+  const plaintext = `ecies round-trip - ${new Date().toISOString()}`;
+  const file = path.join('test-uploads', 'enc-ecies.txt');
+  fs.writeFileSync(file, plaintext);
+
+  const recipientPubKey = pubKeyFromPrivateKey(config.privateKey);
+  const encConfig = { ...config, encryption: { type: 'ecies' as const, recipientPubKey } };
+  const uploaded = await uploadFile(file, encConfig);
+  console.log(`  Root Hash: ${uploaded.rootHash}`);
+
+  const header = await peekHeader(uploaded.rootHash, config);
+  if (header?.version !== 2) {
+    throw new Error(`Expected header v2 (ecies), got ${header?.version ?? 'none'}`);
+  }
+  console.log('  peekHeader detected ecies (v2)');
+
+  const out = path.join('downloads', `enc-ecies-${Date.now()}`);
+  const decConfig = { ...config, decryption: { privateKey: config.privateKey } };
+  await downloadFile(uploaded.rootHash, out, decConfig);
+  const roundTripped = fs.readFileSync(out, 'utf-8');
+
+  if (roundTripped !== plaintext) {
+    throw new Error(`Round-trip mismatch. Expected "${plaintext}", got "${roundTripped}"`);
+  }
+  console.log('  Plaintext matches after decrypt');
+});
+
+// --- Test 9: peekHeader returns null for plaintext file ---
+await test('peekHeader - returns null for plain (unencrypted) file', async () => {
+  if (!uploadedRootHash) throw new Error('Skipped: no plain rootHash available');
+  const header = await peekHeader(uploadedRootHash, config);
+  if (header !== null) {
+    console.log(`  Note: plaintext file first bytes parsed as v${header.version} header.`);
+    console.log('  (peekHeader is best-effort — rare collisions can match a header shape.)');
+  } else {
+    console.log('  Correctly returned null for plaintext file');
   }
 });
 

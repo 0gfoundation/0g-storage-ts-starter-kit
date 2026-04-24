@@ -1,10 +1,56 @@
-import { Blob as ZgBlob, Indexer, StorageNode } from '@0gfoundation/0g-ts-sdk';
+import {
+  Blob as ZgBlob,
+  Indexer,
+  StorageNode,
+  EncryptionHeader,
+  tryDecrypt,
+} from '@0gfoundation/0g-ts-sdk';
+import type { UploadOption, EncryptionOption } from '@0gfoundation/0g-ts-sdk';
 import { ethers } from 'ethers';
 import type { NetworkConfig } from './config.js';
 
 const DEFAULT_CHUNK_SIZE = 256;
 const DEFAULT_SEGMENT_MAX_CHUNKS = 1024;
 const ROOT_HASH_REGEX = /^0x[0-9a-fA-F]{64}$/;
+
+export type EncryptionInput =
+  | { type: 'aes256'; key: Uint8Array }
+  | { type: 'ecies'; recipientPubKey: Uint8Array | string };
+
+export interface DecryptionInput {
+  symmetricKey?: Uint8Array | string;
+  privateKey?: Uint8Array | string;
+}
+
+function toSdkEncryption(e: EncryptionInput): EncryptionOption {
+  return e.type === 'aes256'
+    ? { type: 'aes256', key: e.key }
+    : { type: 'ecies', recipientPubKey: e.recipientPubKey };
+}
+
+/** Parse 0x-prefixed or bare hex into bytes. */
+export function hexToBytes(hex: string): Uint8Array {
+  const s = hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex;
+  if (s.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(s)) {
+    throw new Error(`Invalid hex string: "${hex}"`);
+  }
+  const out = new Uint8Array(s.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(s.substr(i * 2, 2), 16);
+  }
+  return out;
+}
+
+export function bytesToHex(bytes: Uint8Array): string {
+  return '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Generate a random 32-byte AES-256 key using the browser WebCrypto API. */
+export function generateAes256Key(): Uint8Array {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return bytes;
+}
 
 /** Mirrors SDK's GetSplitNum: ceil division */
 function getSplitNum(total: number, unit: number): number {
@@ -24,14 +70,16 @@ export interface DownloadResult {
 
 /**
  * Upload a browser File to 0G Storage.
+ * Pass `encryption` to encrypt client-side before upload (SDK 1.2.2+).
  */
 export async function uploadFile(
   file: File,
   network: NetworkConfig,
   signer: ethers.Signer,
   onStatus?: (msg: string) => void,
+  encryption?: EncryptionInput,
 ): Promise<UploadResult> {
-  onStatus?.('Preparing file...');
+  onStatus?.(encryption ? `Preparing file (${encryption.type} encrypt)...` : 'Preparing file...');
 
   const zgBlob = new ZgBlob(file);
   const indexer = new Indexer(network.indexerRpc);
@@ -43,10 +91,15 @@ export async function uploadFile(
 
   onStatus?.('Uploading to 0G Storage...');
 
+  const uploadOpts: UploadOption | undefined = encryption
+    ? { encryption: toSdkEncryption(encryption) }
+    : undefined;
+
   const [tx, uploadErr] = await indexer.upload(
     zgBlob,
     network.rpcUrl,
     signer as ethers.Signer,
+    uploadOpts,
   );
 
   if (uploadErr !== null) {
@@ -73,6 +126,7 @@ export async function downloadFile(
   rootHash: string,
   network: NetworkConfig,
   onStatus?: (msg: string, percent?: number) => void,
+  decryption?: DecryptionInput,
 ): Promise<DownloadResult> {
   if (!ROOT_HASH_REGEX.test(rootHash)) {
     throw new Error('Invalid root hash format. Expected 0x followed by 64 hex characters.');
@@ -92,16 +146,17 @@ export async function downloadFile(
   const nodes: StorageNode[] = locations.map(loc => new StorageNode(loc.url));
 
   // Get file info from the first responsive node
-  let fileInfo: {
+  type FileInfoShape = {
     tx: { size: number; seq: number; startEntryIndex: number };
     finalized: boolean;
-  } | null = null;
+  };
+  let fileInfo: FileInfoShape | null = null;
 
   for (const node of nodes) {
     try {
       const info = await node.getFileInfo(rootHash, true);
       if (info) {
-        fileInfo = info as typeof fileInfo;
+        fileInfo = info as unknown as FileInfoShape;
         break;
       }
     } catch {
@@ -109,7 +164,7 @@ export async function downloadFile(
     }
   }
 
-  if (!fileInfo) {
+  if (fileInfo === null) {
     throw new Error('Could not retrieve file info from any storage node');
   }
 
@@ -176,12 +231,53 @@ export async function downloadFile(
 
   onStatus?.('Download complete!', 100);
 
-  const blob = new Blob(segments as BlobPart[]);
+  let outBlob = new Blob(segments as BlobPart[]);
+  let outSize = fileSize;
+
+  if (decryption) {
+    onStatus?.('Decrypting...', 100);
+    const cipher = new Uint8Array(await outBlob.arrayBuffer());
+    const symmetricKey =
+      typeof decryption.symmetricKey === 'string'
+        ? hexToBytes(decryption.symmetricKey)
+        : decryption.symmetricKey;
+    const privateKey =
+      typeof decryption.privateKey === 'string' && decryption.privateKey.startsWith('0x')
+        ? decryption.privateKey.slice(2)
+        : decryption.privateKey;
+    const { bytes, decrypted } = tryDecrypt(cipher, { symmetricKey, privateKey });
+    if (!decrypted) {
+      throw new Error(
+        'Decryption failed. Check that the supplied key matches the file’s encryption mode.',
+      );
+    }
+    outBlob = new Blob([bytes as BlobPart]);
+    outSize = bytes.length;
+    onStatus?.('Decrypted.', 100);
+  }
+
   return {
-    blob,
+    blob: outBlob,
     filename: rootHash,
-    size: fileSize,
+    size: outSize,
   };
+}
+
+/**
+ * Peek at a file's first bytes to determine if it is encrypted.
+ * Uses the SDK's Indexer.peekHeader (browser-safe).
+ */
+export async function peekEncryptionHeader(
+  rootHash: string,
+  network: NetworkConfig,
+): Promise<EncryptionHeader | null> {
+  if (!ROOT_HASH_REGEX.test(rootHash)) {
+    throw new Error('Invalid root hash format. Expected 0x followed by 64 hex characters.');
+  }
+  const indexer = new Indexer(network.indexerRpc);
+  const [header, err] = await indexer.peekHeader(rootHash);
+  if (err !== null) throw err;
+  return header;
 }
 
 /**

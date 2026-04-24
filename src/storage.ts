@@ -1,8 +1,15 @@
-import { ZgFile, Indexer, MemData } from '@0gfoundation/0g-ts-sdk';
+import { ZgFile, Indexer, MemData, EncryptionHeader } from '@0gfoundation/0g-ts-sdk';
+import type { UploadOption, EncryptionOption } from '@0gfoundation/0g-ts-sdk';
 import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
-import { AppConfig, createSigner, createIndexer } from './config.js';
+import {
+  AppConfig,
+  EncryptionConfig,
+  DecryptionConfig,
+  createSigner,
+  createIndexer,
+} from './config.js';
 
 interface RetryOpts {
   Retries: number;
@@ -75,6 +82,15 @@ function buildTxOpts(config: AppConfig) {
   return Object.keys(opts).length > 0 ? opts : undefined;
 }
 
+function buildUploadOpts(enc?: EncryptionConfig): UploadOption | undefined {
+  if (!enc) return undefined;
+  const encryption: EncryptionOption =
+    enc.type === 'aes256'
+      ? { type: 'aes256', key: enc.key }
+      : { type: 'ecies', recipientPubKey: enc.recipientPubKey };
+  return { encryption };
+}
+
 // --- Core Functions ---
 
 /**
@@ -103,7 +119,7 @@ export async function uploadFile(
       zgFile,
       config.network.rpcUrl,
       signer as any, // ethers ESM/CJS type mismatch — runtime compatible
-      undefined,
+      buildUploadOpts(config.encryption),
       buildRetryOpts(config),
       buildTxOpts(config),
     );
@@ -128,6 +144,10 @@ export async function uploadFile(
 
 /**
  * Download a file from 0G Storage by its root hash.
+ *
+ * When `config.decryption` is set, downloads via `downloadToBlob` and runs the
+ * SDK's best-effort decrypt (symmetric or ECIES). Otherwise streams to disk
+ * with the Node-only `indexer.download()` path, which is better for large files.
  */
 export async function downloadFile(
   rootHash: string,
@@ -142,13 +162,50 @@ export async function downloadFile(
   }
 
   const indexer = createIndexer(config);
-  const err = await indexer.download(rootHash, resolvedOutput, true);
 
+  if (config.decryption) {
+    const [blob, err] = await indexer.downloadToBlob(rootHash, {
+      proof: true,
+      decryption: normalizeDecryption(config.decryption),
+    });
+    if (err !== null) {
+      throw new DownloadError(`Download failed: ${err}`);
+    }
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    fs.writeFileSync(resolvedOutput, bytes);
+    return { outputPath: resolvedOutput };
+  }
+
+  const err = await indexer.download(rootHash, resolvedOutput, true);
   if (err !== null) {
     throw new DownloadError(`Download failed: ${err}`);
   }
 
   return { outputPath: resolvedOutput };
+}
+
+function normalizeDecryption(d: DecryptionConfig) {
+  return {
+    symmetricKey: d.symmetricKey,
+    privateKey: d.privateKey,
+  };
+}
+
+/**
+ * Peek the encryption header of a stored file without downloading the body.
+ * Returns null if the file is not encrypted (or the header is malformed).
+ */
+export async function peekHeader(
+  rootHash: string,
+  config: AppConfig,
+): Promise<EncryptionHeader | null> {
+  validateRootHash(rootHash);
+  const indexer = createIndexer(config);
+  const [header, err] = await indexer.peekHeader(rootHash);
+  if (err !== null) {
+    throw new DownloadError(`peekHeader failed: ${err}`);
+  }
+  return header;
 }
 
 /**
@@ -177,7 +234,7 @@ export async function uploadData(
     memData,
     config.network.rpcUrl,
     signer as any, // ethers ESM/CJS type mismatch — runtime compatible
-    undefined,
+    buildUploadOpts(config.encryption),
     buildRetryOpts(config),
     buildTxOpts(config),
   );

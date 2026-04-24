@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@0gfoundation/0g-ts-sdk": "^1.2.1",
+    "@0gfoundation/0g-ts-sdk": "^1.2.6",
     "ethers": "^6.13.1"
   },
   "devDependencies": {

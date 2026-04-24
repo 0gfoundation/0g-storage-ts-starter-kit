@@ -12,6 +12,12 @@ import {
   uploadFile,
   downloadFile,
   saveBlobAsFile,
+  peekEncryptionHeader,
+  generateAes256Key,
+  hexToBytes,
+  bytesToHex,
+  type EncryptionInput,
+  type DecryptionInput,
 } from './storage.js';
 
 // --- State ---
@@ -52,6 +58,29 @@ const downloadBtn = $<HTMLButtonElement>('download-btn');
 const downloadStatus = $<HTMLDivElement>('download-status');
 const downloadResult = $<HTMLDivElement>('download-result');
 const downloadCompleteMsg = $<HTMLParagraphElement>('download-complete-msg');
+
+// --- Encryption DOM ---
+const encryptToggle = $<HTMLInputElement>('encrypt-toggle');
+const encryptOptions = $<HTMLDivElement>('encrypt-options');
+const encryptMode = $<HTMLSelectElement>('encrypt-mode');
+const aesKeyRow = $<HTMLDivElement>('aes-key-row');
+const encryptKey = $<HTMLInputElement>('encrypt-key');
+const encryptGenKey = $<HTMLButtonElement>('encrypt-gen-key');
+const eciesPubRow = $<HTMLDivElement>('ecies-pub-row');
+const encryptRecipient = $<HTMLInputElement>('encrypt-recipient');
+const resultEncKeyRow = $<HTMLDivElement>('result-enc-key-row');
+const resultEncKey = $<HTMLElement>('result-enc-key');
+const copyEncKeyBtn = $<HTMLButtonElement>('copy-enc-key');
+
+// --- Decryption DOM ---
+const peekInfo = $<HTMLDivElement>('peek-info');
+const decryptOptions = $<HTMLDivElement>('decrypt-options');
+const decryptAesRow = $<HTMLDivElement>('decrypt-aes-row');
+const decryptKey = $<HTMLInputElement>('decrypt-key');
+const decryptEciesRow = $<HTMLDivElement>('decrypt-ecies-row');
+const decryptPrivkey = $<HTMLInputElement>('decrypt-privkey');
+
+let peekedHeaderVersion: number | null = null; // 1 = aes256, 2 = ecies, null = none
 
 // --- Helpers ---
 function truncateAddress(addr: string): string {
@@ -164,6 +193,108 @@ function handleClearFile() {
   updateButtonStates();
 }
 
+// --- Encryption helpers ---
+function handleEncryptToggle() {
+  encryptOptions.classList.toggle('hidden', !encryptToggle.checked);
+}
+
+function handleEncryptModeChange() {
+  const mode = encryptMode.value;
+  aesKeyRow.classList.toggle('hidden', mode !== 'aes256');
+  eciesPubRow.classList.toggle('hidden', mode !== 'ecies');
+}
+
+function handleGenerateKey() {
+  encryptKey.value = bytesToHex(generateAes256Key());
+}
+
+/** Build encryption input from UI state. Returns undefined if toggle is off. */
+function readEncryptionInput(): { enc: EncryptionInput; displayKey?: string } | undefined {
+  if (!encryptToggle.checked) return undefined;
+
+  if (encryptMode.value === 'aes256') {
+    let key: Uint8Array;
+    let keyHex: string;
+    const raw = encryptKey.value.trim();
+    if (raw === '') {
+      key = generateAes256Key();
+      keyHex = bytesToHex(key);
+      encryptKey.value = keyHex;
+    } else {
+      key = hexToBytes(raw);
+      keyHex = raw;
+      if (key.length !== 32) {
+        throw new Error(`AES-256 key must be 32 bytes (64 hex chars). Got ${key.length}.`);
+      }
+    }
+    return { enc: { type: 'aes256', key }, displayKey: keyHex };
+  }
+
+  const recipient = encryptRecipient.value.trim();
+  if (!recipient) {
+    throw new Error('Recipient public key is required for ECIES encryption.');
+  }
+  return { enc: { type: 'ecies', recipientPubKey: recipient } };
+}
+
+/** Build decryption input from UI state. Returns undefined if nothing to decrypt. */
+function readDecryptionInput(): DecryptionInput | undefined {
+  if (peekedHeaderVersion === null) return undefined;
+
+  if (peekedHeaderVersion === 1) {
+    const hex = decryptKey.value.trim();
+    if (!hex) throw new Error('File is encrypted (AES-256). Enter the decryption key.');
+    return { symmetricKey: hex };
+  }
+  if (peekedHeaderVersion === 2) {
+    const hex = decryptPrivkey.value.trim();
+    if (!hex) throw new Error('File is encrypted (ECIES). Enter your private key.');
+    return { privateKey: hex };
+  }
+  return undefined;
+}
+
+function updateDecryptPanel() {
+  if (peekedHeaderVersion === null) {
+    decryptOptions.classList.add('hidden');
+    peekInfo.classList.add('hidden');
+    return;
+  }
+  decryptOptions.classList.remove('hidden');
+  decryptAesRow.classList.toggle('hidden', peekedHeaderVersion !== 1);
+  decryptEciesRow.classList.toggle('hidden', peekedHeaderVersion !== 2);
+}
+
+async function handlePeekForDownload() {
+  const rootHash = downloadHash.value.trim();
+  if (!/^0x[0-9a-fA-F]{64}$/.test(rootHash)) {
+    peekedHeaderVersion = null;
+    updateDecryptPanel();
+    updateButtonStates();
+    return;
+  }
+
+  try {
+    const header = await peekEncryptionHeader(rootHash, currentNetwork);
+    if (header === null) {
+      peekedHeaderVersion = null;
+      peekInfo.textContent = 'No encryption header detected — file is plaintext.';
+      peekInfo.classList.remove('hidden');
+    } else {
+      peekedHeaderVersion = header.version;
+      const kind = header.version === 1 ? 'AES-256 (symmetric)' : `ECIES (asymmetric, v${header.version})`;
+      peekInfo.textContent = `Encrypted: ${kind}. Enter the matching key below to decrypt.`;
+      peekInfo.classList.remove('hidden');
+    }
+  } catch {
+    // Peek is best-effort — ignore failures and let the download proceed raw.
+    peekedHeaderVersion = null;
+    peekInfo.classList.add('hidden');
+  }
+  updateDecryptPanel();
+  updateButtonStates();
+}
+
 // --- Upload ---
 async function handleUpload() {
   if (!selectedFile || !isConnected) return;
@@ -173,12 +304,20 @@ async function handleUpload() {
 
   uploadBtn.disabled = true;
   uploadResult.classList.add('hidden');
+  resultEncKeyRow.classList.add('hidden');
 
   try {
+    const encInput = readEncryptionInput();
     const networkLabel = `${currentNetwork.name} (${currentNetwork.mode})`;
-    const result = await uploadFile(selectedFile, currentNetwork, signer, (msg) => {
-      showStatus(uploadStatus, `[${networkLabel}] ${msg}`, 'loading');
-    });
+    const result = await uploadFile(
+      selectedFile,
+      currentNetwork,
+      signer,
+      (msg) => {
+        showStatus(uploadStatus, `[${networkLabel}] ${msg}`, 'loading');
+      },
+      encInput?.enc,
+    );
 
     showStatus(uploadStatus, `Upload successful on ${networkLabel}!`, 'success');
 
@@ -186,6 +325,11 @@ async function handleUpload() {
     resultTxLink.textContent = `${result.txHash.slice(0, 16)}...`;
     resultTxLink.href = `${currentNetwork.explorerUrl}/tx/${result.txHash}`;
     uploadResult.classList.remove('hidden');
+
+    if (encInput?.displayKey) {
+      resultEncKey.textContent = encInput.displayKey;
+      resultEncKeyRow.classList.remove('hidden');
+    }
   } catch (err: any) {
     showStatus(uploadStatus, `Upload failed: ${err.message}`, 'error');
   } finally {
@@ -203,10 +347,16 @@ async function handleDownload() {
   downloadResult.classList.add('hidden');
 
   try {
+    const decryption = readDecryptionInput();
     const networkLabel = `${currentNetwork.name} (${currentNetwork.mode})`;
-    const result = await downloadFile(rootHash, currentNetwork, (msg) => {
-      showStatus(downloadStatus, `[${networkLabel}] ${msg}`, 'loading');
-    });
+    const result = await downloadFile(
+      rootHash,
+      currentNetwork,
+      (msg) => {
+        showStatus(downloadStatus, `[${networkLabel}] ${msg}`, 'loading');
+      },
+      decryption,
+    );
 
     showStatus(downloadStatus, `Download complete from ${networkLabel}!`, 'success');
     downloadCompleteMsg.textContent = `File downloaded: ${formatBytes(result.size)}`;
@@ -224,7 +374,13 @@ async function handleDownload() {
 // --- Init ---
 export function initUI(hasMetaMask: boolean) {
   // Download always works (no wallet needed)
-  downloadHash.addEventListener('input', updateButtonStates);
+  downloadHash.addEventListener('input', () => {
+    peekedHeaderVersion = null;
+    peekInfo.classList.add('hidden');
+    decryptOptions.classList.add('hidden');
+    updateButtonStates();
+  });
+  downloadHash.addEventListener('blur', handlePeekForDownload);
   downloadBtn.addEventListener('click', handleDownload);
 
   // Mode selector always works (affects which indexer is used for download)
@@ -237,6 +393,15 @@ export function initUI(hasMetaMask: boolean) {
       navigator.clipboard.writeText(hash);
       copyHashBtn.textContent = 'Copied!';
       setTimeout(() => { copyHashBtn.textContent = 'Copy'; }, 1500);
+    }
+  });
+
+  copyEncKeyBtn.addEventListener('click', () => {
+    const key = resultEncKey.textContent;
+    if (key) {
+      navigator.clipboard.writeText(key);
+      copyEncKeyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyEncKeyBtn.textContent = 'Copy'; }, 1500);
     }
   });
 
@@ -273,6 +438,11 @@ export function initUI(hasMetaMask: boolean) {
     dropZone.classList.remove('dragover');
     if (e.dataTransfer?.files?.[0]) handleFileSelect(e.dataTransfer.files[0]);
   });
+
+  // Encryption toggle + controls
+  encryptToggle.addEventListener('change', handleEncryptToggle);
+  encryptMode.addEventListener('change', handleEncryptModeChange);
+  encryptGenKey.addEventListener('click', handleGenerateKey);
 
   // Upload
   uploadBtn.addEventListener('click', handleUpload);
