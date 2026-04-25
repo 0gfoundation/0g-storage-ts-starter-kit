@@ -152,17 +152,16 @@ const results = await batchUpload(['a.txt', 'b.txt'], config);
 
 ## Encryption
 
-SDK 1.2.2+ supports **client-side encryption** with two modes. The encryption
-happens in the SDK before upload, and files stored encrypted carry a short
-header (17 bytes for aes256, 50 for ecies) that lets the reader auto-detect
-the mode. The 0G storage network never sees plaintext.
+SDK 1.2.6+ supports **client-side encryption** with two modes. Files are encrypted before upload — the 0G network never sees plaintext. A compact header prepended to each file lets the SDK auto-detect the mode on download.
 
-| Mode | Key model | When to use |
-|------|-----------|-------------|
-| `aes256` | One 32-byte symmetric key | Backups, single-user data, sharing via a pre-shared key |
-| `ecies`  | secp256k1 keypair (reuses wallet keys) | Encrypt-to-recipient without pre-sharing a secret |
+| Mode | Key material | Header size | Wire format |
+|------|-------------|-------------|-------------|
+| `aes256` | 32-byte symmetric key | 17 bytes | `[v=0x01][nonce:16]` |
+| `ecies`  | secp256k1 keypair | 50 bytes | `[v=0x02][ephemeralPub:33][nonce:16]` |
 
-> **Warning:** lose the key and the data is unrecoverable. 0G can't help — encryption is client-side.
+> **Warning:** lose the key and the data is unrecoverable. 0G can't help — encryption is entirely client-side.
+
+**Go/TypeScript interoperability**: both SDKs share the same wire format and HKDF parameters. A file encrypted in Go can be decrypted in TypeScript and vice versa.
 
 ### Script recipes
 
@@ -204,7 +203,7 @@ npm run peek -- 0xabc...
 #   Nonce:       0x...
 ```
 
-### Library usage
+### Library usage (starter kit wrappers)
 
 ```typescript
 import {
@@ -212,24 +211,89 @@ import {
   getConfig, generateAes256Key, pubKeyFromPrivateKey,
 } from './src/index.js';
 
-// aes256 round-trip
+// AES-256 round-trip
 const key = generateAes256Key();
-const upCfg = getConfig({ encryption: { type: 'aes256', key } });
-const { rootHash } = await uploadFile('./secret.txt', upCfg);
-
-const dlCfg = getConfig({ decryption: { symmetricKey: key } });
-await downloadFile(rootHash, './out.txt', dlCfg);
+const { rootHash } = await uploadFile('./secret.txt', getConfig({
+  encryption: { type: 'aes256', key },
+}));
+await downloadFile(rootHash, './out.txt', getConfig({
+  decryption: { symmetricKey: key },
+}));
 
 // ECIES — encrypt to a recipient's pubkey
-const recipientPub = pubKeyFromPrivateKey(someWalletPriv);
-const eciesCfg = getConfig({ encryption: { type: 'ecies', recipientPubKey: recipientPub } });
-await uploadFile('./secret.txt', eciesCfg);
+const recipientPubKey = pubKeyFromPrivateKey(someWalletPrivKey);
+const { rootHash: hash } = await uploadFile('./secret.txt', getConfig({
+  encryption: { type: 'ecies', recipientPubKey },
+}));
+await downloadFile(hash, './out.txt', getConfig({
+  decryption: { privateKey: someWalletPrivKey },
+}));
 
 // Peek before deciding how to decrypt
 const header = await peekHeader(rootHash, getConfig());
-if (header?.version === 1)      console.log('aes256');
-else if (header?.version === 2) console.log('ecies');
-else                            console.log('plaintext');
+// header === null  → plaintext
+// header.version === 1 → aes256
+// header.version === 2 → ecies
+```
+
+### Direct SDK usage
+
+The starter kit wrappers call these SDK interfaces internally. Use them directly when you need full control:
+
+```typescript
+import { ZgFile, Indexer } from '@0gfoundation/0g-ts-sdk';
+import type { UploadOption, DownloadOption } from '@0gfoundation/0g-ts-sdk';
+import { ethers } from 'ethers';
+
+const indexer = new Indexer(indexerRpc);
+const signer = new ethers.Wallet(privateKey, provider);
+
+// Key generation — SDK has no utility; use Web Crypto (works in Node 18+ and browser)
+const key = new Uint8Array(32);
+crypto.getRandomValues(key);
+
+// AES-256 upload
+const [tx, upErr] = await indexer.upload(
+  await ZgFile.fromFilePath('./secret.txt'),
+  rpcUrl,
+  signer,
+  { encryption: { type: 'aes256', key } } satisfies UploadOption,
+);
+
+// AES-256 download + decrypt — returns [Blob, Error | null]
+const [blob, dlErr] = await indexer.downloadToBlob(rootHash, {
+  proof: true,
+  decryption: { symmetricKey: key },
+} satisfies DownloadOption);
+
+// ECIES — derive pubkey from wallet (encrypt-to-self)
+const recipientPubKey = ethers.SigningKey.computePublicKey(
+  signer.signingKey.publicKey, true, // compressed 33-byte key
+);
+const [tx2, _] = await indexer.upload(file, rpcUrl, signer, {
+  encryption: { type: 'ecies', recipientPubKey },
+});
+const [blob2, __] = await indexer.downloadToBlob(rootHash, {
+  decryption: { privateKey }, // 0x-prefixed hex or Uint8Array
+});
+
+// Peek header — returns [EncryptionHeader | null, Error | null]
+const [header, peekErr] = await indexer.peekHeader(rootHash);
+// null = plaintext | header.version 1 = aes256 | header.version 2 = ecies
+
+// Multi-fragment encrypted file — same function, array overload
+const rootHashes = [fragment0Hash, fragment1Hash]; // roots from a fragmented upload
+const [combinedBlob, err] = await indexer.downloadToBlob(rootHashes, {
+  decryption: { symmetricKey: key },
+});
+```
+
+> **`indexer.download()` does not support decryption.** It writes directly to disk via `fs` and has no decryption hook. Always use `indexer.downloadToBlob()` for encrypted files.
+
+Run the SDK-level test to validate all patterns against the live network:
+
+```bash
+npm run test:sdk-encryption
 ```
 
 ### Env-var configuration
