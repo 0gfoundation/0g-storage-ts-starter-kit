@@ -60,11 +60,12 @@ async function test(name: string, fn: () => Promise<void>) {
 let uploadedRootHash = '';
 
 await test('uploadFile - upload test-file.txt', async () => {
-  const testFile = path.join('test-uploads', 'test-file.txt');
-  if (!fs.existsSync(testFile)) {
-    fs.mkdirSync('test-uploads', { recursive: true });
-    fs.writeFileSync(testFile, `0G Storage test - ${new Date().toISOString()}`);
-  }
+  // Always write fresh content so the root hash is new on every run.
+  // Reusing a static file triggers skipIfFinalized, which returns txHash:''
+  // and breaks the test even though the upload "succeeded".
+  fs.mkdirSync('test-uploads', { recursive: true });
+  const testFile = path.join('test-uploads', `test-file-${Date.now()}.txt`);
+  fs.writeFileSync(testFile, `0G Storage test - ${new Date().toISOString()}`);
 
   const result = await uploadFile(testFile, config);
   console.log(`  Root Hash: ${result.rootHash}`);
