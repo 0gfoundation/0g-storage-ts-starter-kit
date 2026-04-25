@@ -15,5 +15,5 @@
     "declarationMap": true
   },
   "include": ["src/**/*", "scripts/**/*"],
-  "exclude": ["node_modules", "dist", "web"]
+  "exclude": ["node_modules", "dist", "web", "src/test-sdk.ts"]
 }

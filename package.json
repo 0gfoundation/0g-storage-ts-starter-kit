@@ -16,14 +16,18 @@
     "download": "tsx scripts/download.ts",
     "upload:data": "tsx scripts/upload-data.ts",
     "upload:batch": "tsx scripts/batch-upload.ts",
+    "upload:encrypted": "tsx scripts/encrypted-upload.ts",
+    "download:encrypted": "tsx scripts/encrypted-download.ts",
+    "peek": "tsx scripts/peek-header.ts",
     "test:all": "tsx scripts/test-all.ts",
+    "test:sdk-encryption": "tsx scripts/test-sdk-encryption.ts",
     "web": "cd web && npm run dev",
     "web:build": "cd web && npm run build",
     "build": "tsc",
     "watch": "tsc -w"
   },
   "dependencies": {
-    "@0gfoundation/0g-ts-sdk": "^1.2.1",
+    "@0gfoundation/0g-ts-sdk": "^1.2.6",
     "commander": "^11.1.0",
     "dotenv": "^16.3.1",
     "ethers": "^6.13.1"

@@ -16,6 +16,15 @@ export interface NetworkConfig {
   explorerUrl: string;
 }
 
+export type EncryptionConfig =
+  | { type: 'aes256'; key: Uint8Array }
+  | { type: 'ecies'; recipientPubKey: Uint8Array | string };
+
+export interface DecryptionConfig {
+  symmetricKey?: Uint8Array | string;
+  privateKey?: Uint8Array | string;
+}
+
 export interface AppConfig {
   network: NetworkConfig;
   privateKey?: string;
@@ -23,6 +32,8 @@ export interface AppConfig {
   gasLimit?: bigint;
   maxRetries?: number;
   maxGasPrice?: bigint;
+  encryption?: EncryptionConfig;
+  decryption?: DecryptionConfig;
 }
 
 // Indexer URLs per network and mode
@@ -71,11 +82,15 @@ export function getNetwork(name?: string, mode?: string): NetworkConfig {
   };
 }
 
-export function getConfig(overrides?: {
+export interface ConfigOverrides {
   network?: string;
   mode?: string;
   privateKey?: string;
-}): AppConfig {
+  encryption?: EncryptionConfig;
+  decryption?: DecryptionConfig;
+}
+
+export function getConfig(overrides?: ConfigOverrides): AppConfig {
   const network = getNetwork(overrides?.network, overrides?.mode);
   const privateKey = overrides?.privateKey || process.env.PRIVATE_KEY;
 
@@ -86,6 +101,61 @@ export function getConfig(overrides?: {
     gasLimit: process.env.GAS_LIMIT ? BigInt(process.env.GAS_LIMIT) : undefined,
     maxRetries: process.env.MAX_RETRIES ? parseInt(process.env.MAX_RETRIES) : undefined,
     maxGasPrice: process.env.MAX_GAS_PRICE ? BigInt(process.env.MAX_GAS_PRICE) : undefined,
+    encryption: overrides?.encryption ?? encryptionFromEnv(),
+    decryption: overrides?.decryption ?? decryptionFromEnv(),
+  };
+}
+
+// --- Encryption helpers ---------------------------------------------------
+
+/** Parse a 0x-prefixed or bare hex string into bytes. */
+export function hexToBytes(hex: string): Uint8Array {
+  const s = hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex;
+  if (s.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(s)) {
+    throw new Error(`Invalid hex string: "${hex}"`);
+  }
+  const out = new Uint8Array(s.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(s.substr(i * 2, 2), 16);
+  }
+  return out;
+}
+
+/** Generate a cryptographically random 32-byte AES-256 key. */
+export function generateAes256Key(): Uint8Array {
+  return ethers.randomBytes(32);
+}
+
+/** Derive the secp256k1 public key (0x-prefixed compressed, 33 bytes) from a private key. */
+export function pubKeyFromPrivateKey(privateKey: string): string {
+  const wallet = new ethers.Wallet(privateKey);
+  // ethers.SigningKey.computePublicKey returns uncompressed by default; pass true for compressed.
+  return ethers.SigningKey.computePublicKey(wallet.signingKey.publicKey, true);
+}
+
+function encryptionFromEnv(): EncryptionConfig | undefined {
+  const mode = process.env.ENCRYPTION_MODE?.toLowerCase();
+  if (!mode) return undefined;
+  if (mode === 'aes256') {
+    const key = process.env.ENCRYPTION_KEY;
+    if (!key) throw new Error('ENCRYPTION_MODE=aes256 requires ENCRYPTION_KEY in env');
+    return { type: 'aes256', key: hexToBytes(key) };
+  }
+  if (mode === 'ecies') {
+    const pub = process.env.RECIPIENT_PUBKEY;
+    if (!pub) throw new Error('ENCRYPTION_MODE=ecies requires RECIPIENT_PUBKEY in env');
+    return { type: 'ecies', recipientPubKey: pub };
+  }
+  throw new Error(`Invalid ENCRYPTION_MODE: "${mode}". Use "aes256" or "ecies".`);
+}
+
+function decryptionFromEnv(): DecryptionConfig | undefined {
+  const sym = process.env.DECRYPTION_KEY;
+  const priv = process.env.RECIPIENT_PRIVKEY;
+  if (!sym && !priv) return undefined;
+  return {
+    symmetricKey: sym,
+    privateKey: priv,
   };
 }
 
